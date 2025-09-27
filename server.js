@@ -11,6 +11,8 @@ import authRoutes from './routes/authRoutes.js';
 import promptRoutes from './routes/promptRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import connectDB from './config/db.js';
+import { welcomeMessage } from './controllers/authController.js';
+import { Router } from 'express';
 
 dotenv.config();
 
@@ -43,6 +45,8 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // === Routes ===
+const router = express.Router();
+router.get('/', welcomeMessage);
 app.use('/api/auth', limiter, authRoutes);
 app.use('/api/prompts', promptRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);

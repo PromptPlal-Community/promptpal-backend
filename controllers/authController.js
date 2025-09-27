@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { sendOTPEmail, sendWelcomeEmail } from "../utils/sendEmail.js";
 import SubscriptionPlan from "../models/SubscriptionPlanModel.js";
+import e from "express";
 
 const generateAccessToken = (user) => {
   return jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
@@ -16,6 +17,12 @@ const generateRefreshToken = (user) => {
     expiresIn: "7d",
   });
 };
+
+// Welcome to PromptPal!
+export const welcomeMessage = (req, res) => {
+  res.status(200).json({ message: "Welcome to PromptPal API! Your number one source for AI-generated prompts community." });
+};
+
 
 // REGISTER with basic details and basic free subscription
 export const registerUser = async (req, res) => {
