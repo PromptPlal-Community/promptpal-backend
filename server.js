@@ -8,6 +8,8 @@ import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/authRoutes.js';
+import promptRoutes from './routes/promptRoutes.js';
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import connectDB from './config/db.js';
 
 dotenv.config();
@@ -42,6 +44,8 @@ if (process.env.NODE_ENV === 'development') {
 
 // === Routes ===
 app.use('/api/auth', limiter, authRoutes);
+app.use('/api/prompts', promptRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
 
 
 // === Error Handlers ===

@@ -9,10 +9,10 @@ import {
   resetPasswordWithOTP as resetPassword,
   refreshAccessToken,
   handleGetAllUsers,
+  handleGetUserProfile,
+  handleUpdateUserProfile,
 } from '../controllers/authController.js';
-import {protect} from "../middleware/authMiddleware.js"
-import { authorizeRoles } from "../middleware/roleMiddleware.js"
-import {authorizeRoles} from "../middleware/roleMiddleware.js"
+import { protect } from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 router.post('/register', registerUser);
@@ -23,11 +23,13 @@ router.post('/logout', logoutUser);
 router.post('/refresh-token', refreshAccessToken);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.get('/users', protect, handleGetAllUsers);
 
+// get user profile
+router.get('/profile', protect, handleGetUserProfile);
 
-// FOR ADMIN ONLY
-router.get('/users', protect, authorizeRoles("admin"), handleGetAllUsers);
-
+// update user profile
+router.patch('/profile', protect, handleUpdateUserProfile);
 
 
 export default router;
