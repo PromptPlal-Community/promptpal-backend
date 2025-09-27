@@ -18,12 +18,6 @@ const generateRefreshToken = (user) => {
   });
 };
 
-// Welcome to PromptPal!
-export const welcomeMessage = (req, res) => {
-  res.status(200).json({ message: "Welcome to PromptPal API! Your number one source for AI-generated prompts community." });
-};
-
-
 // REGISTER with basic details and basic free subscription
 export const registerUser = async (req, res) => {
   try {
