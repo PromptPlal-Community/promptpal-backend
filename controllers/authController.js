@@ -792,6 +792,7 @@ export const handleGetAllUsers = async (req, res) => {
       success: true,
       message: "Users retrieved successfully",
       users,
+      profile: users.profile,
       count: users.length
     });
   } catch (error) {
@@ -841,7 +842,8 @@ export const handleGetUserProfile = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      user
+      user,
+      profile: user.profile
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -897,7 +899,7 @@ export const handleGetUserProfile = async (req, res) => {
  */
 export const handleUpdateUserProfile = async (req, res) => {
   try {
-    const { name, profession, bio, location, website, twitter, github, linkedin } = req.body;
+    const { name, phone, profession, bio, dob, gender, location, website, twitter, github, linkedin } = req.body;
     
     const user = await User.findById(req.user.id);
     if (!user) {
@@ -906,10 +908,13 @@ export const handleUpdateUserProfile = async (req, res) => {
 
     // Update basic fields
     if (name) user.name = name;
+    if (phone) user.phone = phone;
     if (profession) user.profession = profession;
     
     // Update profile fields
     if (bio) user.profile.bio = bio;
+    if (dob) user.profile.dob = dob;
+    if (gender) user.profile.gender = gender;
     if (location) user.profile.location = location;
     
     // Update social links
@@ -928,6 +933,7 @@ export const handleUpdateUserProfile = async (req, res) => {
         name: user.name,
         username: user.username,
         email: user.email,
+        phone: user.phone,
         profession: user.profession,
         profile: user.profile
       }
@@ -939,7 +945,7 @@ export const handleUpdateUserProfile = async (req, res) => {
 };
 
 
-// USER UPDATE THEIR PROFESSION
+// USER UPDATE THEIR PROFESSION and add 
 /**
  * @swagger
  * /auth/update-profession:

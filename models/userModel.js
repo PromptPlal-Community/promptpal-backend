@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import { trim } from "validator";
 
 const UserSchema = new mongoose.Schema({
   name: {
@@ -21,6 +22,11 @@ const UserSchema = new mongoose.Schema({
     unique: true,
     trim: true,
     lowercase: true
+  },
+  phone: {
+    type: Number,
+    trim: true,
+    unique: true
   },
   password: {
     type: String,
