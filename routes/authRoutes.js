@@ -11,6 +11,7 @@ import {
   handleGetAllUsers,
   handleGetUserProfile,
   handleUpdateUserProfile,
+  handleUpdateProfession,
 
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
@@ -31,6 +32,9 @@ router.get('/profile', protect, handleGetUserProfile);
 
 // update user profile
 router.patch('/profile', protect, handleUpdateUserProfile);
+
+// update user profession
+router.patch('/profile/profession', protect, handleUpdateProfession);
 
 
 export default router;

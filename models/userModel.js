@@ -47,7 +47,10 @@ const UserSchema = new mongoose.Schema({
   },
   profile: {
     bio: String,
+    dob: Date,
+    gender: { type: String, enum: ['male', 'female', 'other'] },
     location: String,
+
     socialLinks: {
       website: String,
       twitter: String,
@@ -163,6 +166,15 @@ const UserSchema = new mongoose.Schema({
   isVerified: {
     type: Boolean,
     default: false
+  },
+  isBlocked: {
+    type: Boolean,
+    default: false
+  },
+  role: {
+    type: String,
+    enum: ['user', 'prompt-creator', 'admin', 'superadmin'],
+    default: 'user'
   },
   createdAt: {
     type: Date,

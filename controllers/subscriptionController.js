@@ -3,6 +3,19 @@ import User from '../models/userModel.js';
 import SubscriptionPlan from '../models/SubscriptionPlanModel.js';
 
 // Get available plans
+/**
+ * @swagger
+ * /subscriptions:
+ *   get:
+ *     summary: Get available subscription plans
+ *     description: Retrieve a list of all available subscription plans
+ *     tags: [Subscription]
+ *     responses:
+ *       200:
+ *         description: Plans retrieved successfully
+ *       500:
+ *         description: Internal server error
+ */
 export const getAvailablePlans = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
@@ -139,6 +152,21 @@ export const checkUsageLimits = async (req, res) => {
 
 
 // cancel subscription plan
+/**
+ * @swagger
+ * /subscriptions/{id}/cancel:
+ *   post:
+ *     summary: Cancel subscription
+ *     description: Cancel the user's active subscription
+ *     tags: [Subscription]
+ *     responses:
+ *       200:
+ *         description: Subscription cancelled successfully
+ *       404:
+ *         description: No active subscription found
+ *       500:
+ *         description: Internal server error
+ */
 export const cancelSubscription = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).populate('subscription.planId');

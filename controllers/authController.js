@@ -19,6 +19,86 @@ const generateRefreshToken = (user) => {
 };
 
 // REGISTER with basic details and basic free subscription
+/**
+ * @swagger
+ * /auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Authentication]
+ *     description: Creates a new user account with free basic subscription
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - username
+ *               - email
+ *               - password
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "John Doe"
+ *               username:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 30
+ *                 example: "johndoe123"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 6
+ *                 example: "Password123"
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Registered successfully. Check your email for OTP."
+ *                 token:
+ *                   type: string
+ *                   description: JWT token for verification
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *                 subscription:
+ *                   type: object
+ *                   properties:
+ *                     plan:
+ *                       type: string
+ *                       example: "Starter Plan"
+ *                     status:
+ *                       type: string
+ *                       example: "trial"
+ *                     trialEnds:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: Bad request - validation error or user exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 export const registerUser = async (req, res) => {
   try {
     const { name, username, email, password, profession, level } = req.body;
@@ -55,8 +135,8 @@ export const registerUser = async (req, res) => {
         limits: {
           promptsLimit: 20,
           apiCallsLimit: 100,
-          storageLimit: 100, // 100MB
-          maxImageSize: 5, // 5MB
+          storageLimit: 100, 
+          maxImageSize: 5,
           maxImagesPerPrompt: 5,
           maxCommunities: 2,
           canCreatePrivate: false,
@@ -92,7 +172,7 @@ export const registerUser = async (req, res) => {
       profession,
       level: level || 'Newbie',
       otp,
-      otpExpires: Date.now() + 10 * 60 * 1000, // 10 minutes
+      otpExpires: Date.now() + 10 * 60 * 1000,
       isVerified: false,
       isEmailVerified: false,
       subscription: {
@@ -155,13 +235,74 @@ export const registerUser = async (req, res) => {
 };
 
 // LOGIN
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     summary: Login user
+ *     tags: [Authentication]
+ *     description: Authenticate user and return JWT tokens
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: "Password123"
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Login successful"
+ *                 accessToken:
+ *                   type: string
+ *                 refreshToken:
+ *                   type: string
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Invalid credentials or email not verified
+ *       500:
+ *         description: Internal server error
+ */
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, username } = req.body;
 
-    const user = await User.findOne({ email });
+      // Check username if provided and allow user to login with either email or username
+    let user;
+    if (email) {
+      user = await User.findOne({ email });
+    } else if (username) {
+      user = await User.findOne({ username });
+    }
     if (!user) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Check if user is blocked
+    if (user.isBlocked) {
+      return res.status(403).json({ message: "Your account is blocked." });
     }
 
     // Check password
@@ -220,8 +361,37 @@ export const loginUser = async (req, res) => {
 };
 
 
-
 // REFRESH TOKEN
+/**
+ * @swagger
+ * /auth/refresh-token:
+ *   post:
+ *     summary: Refresh access token
+ *     tags: [Authentication]
+ *     description: Get new access token using refresh token
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Token refreshed successfully"
+ *                 accessToken:
+ *                   type: string
+ *       401:
+ *         description: Refresh token missing or invalid
+ *       500:
+ *         description: Internal server error
+ */
 export const refreshAccessToken = async (req, res) => {
   const token = req.cookies.refreshToken || req.body.refreshToken;
   
@@ -257,6 +427,49 @@ export const refreshAccessToken = async (req, res) => {
 };
 
 // LOGOUT
+/**
+ * @swagger
+ * /auth/logout:
+ *   post:
+ *     summary: Logout user
+ *     tags: [Authentication]
+ *     description: Logout user and invalidate tokens
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               accessToken:
+ *                 type: string
+ *               refreshToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User logged out successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "User logged out successfully"
+ *                 accessToken:
+ *                   type: string
+ *                 refreshToken:
+ *                   type: string
+ *       401:
+ *         description: Access and refresh token missing or invalid
+ *       500:
+ *         description: Internal server error
+ */
 export const logoutUser = (req, res) => {
   res.clearCookie("accessToken");
   res.clearCookie("refreshToken");
@@ -264,6 +477,43 @@ export const logoutUser = (req, res) => {
 };
 
 // VERIFY EMAIL
+/**
+ * @swagger
+ * /auth/verify-email:
+ *   post:
+ *     summary: Verify email with OTP
+ *     tags: [Authentication]
+ *     description: Verify user's email address using OTP sent during registration
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ *               otp:
+ *                 type: string
+ *                 pattern: '^[0-9]{6}$'
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         description: Invalid or expired OTP
+ *       500:
+ *         description: Internal server error
+ */
 export const verifyEmailOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -316,6 +566,34 @@ export const verifyEmailOTP = async (req, res) => {
 };
 
 // RESEND OTP
+/**
+ * @swagger
+ * /auth/resend-otp:
+ *   post:
+ *     summary: Resend OTP for email verification
+ *     tags: [Authentication]
+ *     description: Resend a new OTP to the user's email for verification
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ *     responses:
+ *       200:
+ *         description: OTP resent successfully
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
 export const resendOTP = async (req, res) => {
   try {
     const { email } = req.body;
@@ -345,6 +623,27 @@ export const resendOTP = async (req, res) => {
 };
 
 // FORGOT PASSWORD
+/**
+ * @swagger
+ * /auth/reset-otp:
+ *   post:
+ *     summary: Send OTP for password reset
+ *     tags: [Authentication]
+ *     description: Send a one-time password (OTP) to the user's email for password reset
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ */
 export const sendResetOTP = async (req, res) => {
   try {
     const { email } = req.body;
@@ -373,6 +672,49 @@ export const sendResetOTP = async (req, res) => {
 };
 
 // RESET PASSWORD
+/**
+ * @swagger
+ * /auth/reset-password:
+ *   post:
+ *     summary: Reset password using OTP
+ *     tags: [Authentication]
+ *     description: Reset user's password using the OTP sent to their email
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *               - newPassword
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ *               otp:
+ *                 type: string
+ *                 pattern: '^[0-9]{6}$'
+ *                 example: "123456"
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 6
+ *                 example: "NewPassword123"
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Success'
+ *       400:
+ *         description: Invalid or expired OTP
+ *       500:
+ *         description: Internal server error
+ */
 export const resetPasswordWithOTP = async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
@@ -400,6 +742,41 @@ export const resetPasswordWithOTP = async (req, res) => {
 };
 
 // GET ALL USERS (Admin only)
+/**
+ * @swagger
+ * /auth/users:
+ *   get:
+ *     summary: Get all users (Admin only)
+ *     tags: [Authentication]
+ *     description: Retrieve a list of all registered users (admin access required)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of users retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Users retrieved successfully"
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
+ *                 count:
+ *                   type: integer
+ *                   example: 10
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       500:
+ *         description: Internal server error
+ */
 export const handleGetAllUsers = async (req, res) => {
   try {
     const users = await User.find().select('-password -otp -otpExpires');
@@ -427,6 +804,33 @@ export const handleGetAllUsers = async (req, res) => {
 };
 
 // GET USER PROFILE
+/**
+ * @swagger
+ * /auth/profile:
+ *   get:
+ *     summary: Get user profile
+ *     tags: [Authentication]
+ *     description: Retrieve the profile information of the logged-in user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
 export const handleGetUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password -otp -otpExpires');
@@ -446,6 +850,51 @@ export const handleGetUserProfile = async (req, res) => {
 };
 
 // UPDATE USER PROFILE
+/**
+ * @swagger
+ * /auth/profile:
+ *   put:
+ *     summary: Update user profile
+ *     tags: [Authentication]
+ *     description: Update the profile information of the logged-in user
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "John Doe"
+ *               profession:
+ *                 type: string
+ *                 example: "Developer"
+ *               bio:
+ *                 type: string
+ *                 example: "Passionate developer and tech enthusiast."
+ *               location:
+ *                 type: string
+ *                 example: "New York, USA"
+ *               website:
+ *                 type: string
+ *                 format: uri
+ *                 example: "https://johndoe.com"
+ *               twitter:
+ *                 type: string
+ *                 format: uri
+ *                 example: "https://twitter.com/johndoe"
+ *               github:
+ *                 type: string
+ *                 format: uri
+ *                 example: "https://github.com/johndoe"
+ *               linkedin:
+ *                 type: string
+ *                 format: uri
+ *                 example: "https://linkedin.com/in/johndoe"
+ */
 export const handleUpdateUserProfile = async (req, res) => {
   try {
     const { name, profession, bio, location, website, twitter, github, linkedin } = req.body;
@@ -488,3 +937,85 @@ export const handleUpdateUserProfile = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+
+// USER UPDATE THEIR PROFESSION
+/**
+ * @swagger
+ * /auth/update-profession:
+ *   put:
+ *     summary: Update user profession
+ *     tags: [Authentication]
+ *     description: Update the profession of the logged-in user
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - profession
+ *             properties:
+ *               profession:
+ *                 type: string
+ *                 example: "Developer"
+ *     responses:
+ *       200:
+ *         description: Profession updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Profession updated successfully"
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Profession is required
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
+export const handleUpdateProfession = async (req, res) => {
+  try {
+    const { profession } = req.body;
+    
+    if (!profession) {
+      return res.status(400).json({ message: "Profession is required" });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.profession = profession;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Profession updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        profession: user.profession,
+        level: user.level
+      }
+    });
+  } catch (error) {
+    console.error('Update profession error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// TODO: UPDATE USER LEVEL BASED ON USAGE, PROMPTS CREATED, COMMUNITIES JOINED, REVIEWS, CREATED, LIKES, SHARES, ENGAGEMENT OVER TIME ETC AND SUBSCRIPTION PLAN

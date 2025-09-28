@@ -11,6 +11,8 @@ import authRoutes from './routes/authRoutes.js';
 import promptRoutes from './routes/promptRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import connectDB from './config/db.js';
+import swaggerUi from "swagger-ui-express";
+import swaggerSpec from "./config/swagger.js";
 
 dotenv.config();
 
@@ -18,7 +20,6 @@ const app = express();
 
 // === Middleware ===
 app.use(helmet());
-
 app.use(
   cors({
     origin: process.env.CLIENT_URL,
@@ -26,7 +27,6 @@ app.use(
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
   })
 );
-
 app.use(cookieParser());
 
 const limiter = rateLimit({
@@ -43,15 +43,19 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // === Routes ===
-// welcome route
 app.get('/api/', (req, res) => {
-  res.json({ message: 'Welcome to the PromptPal API. Your number one source for AI-generated prompts community.' });
+  res.json({
+    message:
+      'Welcome to the PromptPal API. Your number one source for AI-generated prompts community.',
+  });
 });
 
 app.use('/api/auth', limiter, authRoutes);
 app.use('/api/prompts', promptRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 
+// === Swagger Docs ===
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // === Error Handlers ===
 app.use(notFound);
@@ -64,7 +68,10 @@ connectDB()
   .then(() => {
     console.log("MongoDB connected successfully");
     app.listen(PORT, () => {
-      console.log(`✅ Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+      console.log(
+        `✅ Server running in ${process.env.NODE_ENV} mode on port ${PORT}`
+      );
+      console.log(`📘 API docs available at http://localhost:${PORT}/api-docs`);
     });
   })
   .catch((err) => {

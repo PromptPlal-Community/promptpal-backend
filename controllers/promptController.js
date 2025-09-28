@@ -1,11 +1,60 @@
 import Prompt from '../models/promptModel.js';
 import User from '../models/userModel.js';
 import CloudinaryService from '../utils/CloudinaryService.js';
-import upload from '../utils/multer.js';
 
 
 
 // Create prompt with images
+/**
+ * @swagger
+ * /prompts:
+ *   post:
+ *     summary: Create a new prompt
+ *     description: Create a new prompt with images
+ *     tags: [Prompts]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               promptText:
+ *                 type: string
+ *               resultText:
+ *                 type: string
+ *               aiTool:
+ *                 type: string
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               isPublic:
+ *                 type: boolean
+ *               isDraft:
+ *                  type: boolean
+ *               version:
+ *                  type: number
+ *               requiresLevel:
+ *                 type: string
+ *               difficulty:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               captions:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       201:
+ *         description: Prompt created successfully
+ *       400:
+ *         description: Bad request
+ */
 export const createPrompt = async (req, res) => {
 try {
     const { 
@@ -15,7 +64,8 @@ try {
       resultText, 
       aiTool, 
       tags, 
-      isPublic, 
+      isPublic,
+      isDraft, 
       requiresLevel, 
       difficulty, 
       category,
@@ -82,10 +132,19 @@ try {
       tags: Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim()),
       author: req.user._id,
       isPublic: isPublic !== 'false',
+      isDraft: isDraft === 'true',
+      version: 1,
       requiresLevel: requiresLevel || 'Newbie',
       difficulty: difficulty || 'Beginner',
       category: category || 'Other',
-      images: processedImages
+      images: processedImages,
+        metadata: {
+        wordCount: promptText.split(/\s+/).length,
+        characterCount: promptText.length,
+        hasImages: processedImages.length > 0,
+        hasCode: promptText.includes('```') || (resultText && resultText.includes('```')),
+        imageCount: processedImages.length,
+        },
     });
 
     await prompt.save();
@@ -107,6 +166,38 @@ try {
 
 
 // Add images to existing prompt
+/**
+ * @swagger
+ * /prompts/{id}/images:
+ *   post:
+ *     summary: Add images to an existing prompt
+ *     description: Upload images to an existing prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       200:
+ *         description: Images added successfully
+ *       400:
+ *         description: Bad request
+ */
 export const addImagesToPrompt = async (req, res) => {
           try {
     const prompt = await Prompt.findById(req.params.id);
@@ -153,10 +244,78 @@ export const addImagesToPrompt = async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
-    };
+};
+
+
+// Get all prompts
+/**
+ * @swagger
+ * /users/me/prompts:
+ *   get:
+ *     summary: Get all prompts created by the user
+ *     description: Retrieve all prompts created by the authenticated user
+ *     tags: [Prompts]
+ *     responses:
+ *       200:
+ *         description: Prompts retrieved successfully
+ *       400:
+ *         description: Bad request
+ */
+export const getUserPrompts = async (req, res) => {
+  try {
+    const prompts = await Prompt.find({ author: req.user._id });
+    res.json({
+      success: true,
+      prompts
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
 
 
 // Get prompts with images
+/**
+ * @swagger
+ * /prompts/with-images:
+ *   get:
+ *     summary: Get prompts that have images
+ *     description: Retrieve prompts that include images with pagination and filtering
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         description: Page number for pagination
+ *         default: 1
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         description: Number of prompts to retrieve per page
+ *         default: 12
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: aiTool
+ *         description: Filter prompts by AI tool
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: category
+ *         description: Filter prompts by category
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: difficulty
+ *         description: Filter prompts by difficulty level
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Prompts retrieved successfully
+ *       400:
+ *         description: Bad request
+ */
 export const getPromptsWithImages = async (req, res) => {
   try {
     const { page = 1, limit = 12, aiTool, category, difficulty } = req.query;
@@ -193,6 +352,30 @@ export const getPromptsWithImages = async (req, res) => {
 
 
 // Delete image from prompt
+/**
+ * @swagger
+ * /prompts/{id}/images/{imageIndex}:
+ *   delete:
+ *     summary: Delete an image from a prompt
+ *     description: Remove an image from a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *       - in: path
+ *         name: imageIndex
+ *         required: true
+ *         description: Index of the image to delete
+ *     responses:
+ *       200:
+ *         description: Image deleted successfully
+ *       404:
+ *         description: Prompt or image not found
+ *       403:
+ *         description: Not authorized to delete this image
+ */
 export const deleteImageFromPrompt = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id);
@@ -217,6 +400,47 @@ export const deleteImageFromPrompt = async (req, res) => {
 }
 
 // Get all prompts with pagination and filtering
+/**
+ * @swagger
+ * /prompts:
+ *   get:
+ *     summary: Get all prompts
+ *     description: Retrieve all prompts with optional filtering and pagination
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         description: Page number for pagination
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         description: Number of prompts to retrieve per page
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: aiTool
+ *         description: Filter prompts by AI tool
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: category
+ *         description: Filter prompts by category
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: difficulty
+ *         description: Filter prompts by difficulty level
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Prompts retrieved successfully
+ *       400:
+ *         description: Bad request
+ */
 export const getAllPrompts = async (req, res) => {
   try {
     const { page = 1, limit = 10, aiTool, tags, author, isPublic } = req.query;
@@ -246,6 +470,24 @@ export const getAllPrompts = async (req, res) => {
 
 
 // Get single prompt by ID
+/**
+ * @swagger
+ * /prompts/{id}:
+ *   get:
+ *     summary: Get a single prompt by ID
+ *     description: Retrieve a specific prompt by its ID
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Prompt retrieved successfully
+ *       404:
+ *         description: Prompt not found
+ */
 export const getPromptById = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id).populate('author', 'name');
@@ -263,6 +505,26 @@ export const getPromptById = async (req, res) => {
 
 
 // Update prompt details and images
+/**
+ * @swagger
+ * /prompts/{id}:
+ *   put:
+ *     summary: Update a prompt by ID
+ *     description: Update the details of a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Prompt updated successfully
+ *       404:
+ *         description: Prompt not found
+ *       403:
+ *         description: Not authorized to update this prompt
+ */
 export const updatePrompt = async (req, res) => {
     try {
       const prompt = await Prompt.findById(req.params.id)
@@ -449,6 +711,28 @@ export const updatePrompt = async (req, res) => {
     };
 
 // Delete prompt
+/**
+ * @swagger
+ * /prompts/{id}:
+ *   delete:
+ *     summary: Delete a prompt by ID
+ *     description: Remove a specific prompt by its ID
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Prompt deleted successfully
+ *       404:
+ *         description: Prompt not found
+ *       403:
+ *         description: Not authorized to delete this prompt
+ *       500:
+ *         description: Internal server error
+ */
 export const deletePrompt = async (req, res) => {
       try {
     const prompt = await Prompt.findById(req.params.id);
@@ -468,6 +752,38 @@ export const deletePrompt = async (req, res) => {
 
 
 // Set primary image for prompt
+/**
+ * @swagger
+ * /prompts/{id}/images/primary:
+ *   put:
+ *     summary: Set primary image for a prompt
+ *     description: Update the primary image of a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *       - in: body
+ *         name: body
+ *         required: true
+ *         description: New primary image ID
+ *         schema:
+ *           type: object
+ *           properties:
+ *             imageId:
+ *               type: string
+ *               description: ID of the image to set as primary
+ *     responses:
+ *       200:
+ *         description: Primary image set successfully
+ *       404:
+ *         description: Prompt or image not found
+ *       403:
+ *         description: Not authorized to update this prompt
+ *       500:
+ *         description: Internal server error
+ */
 export const setPrimaryImage = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id);
@@ -499,6 +815,38 @@ export const setPrimaryImage = async (req, res) => {
 
 
 // Rate a prompt
+/**
+ * @swagger
+ * /prompts/{id}/rate:
+ *   post:
+ *     summary: Rate a prompt
+ *     description: Submit a rating for a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *       - in: body
+ *         name: body
+ *         required: true
+ *         description: Rating value
+ *         schema:
+ *           type: object
+ *           properties:
+ *             rating:
+ *               type: integer
+ *               description: Rating value (1-5)
+ *     responses:
+ *       200:
+ *         description: Prompt rated successfully
+ *       404:
+ *         description: Prompt not found
+ *       403:
+ *         description: Not authorized to rate this prompt
+ *       500:
+ *         description: Internal server error
+ */
 export const ratePrompt = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id);
@@ -525,7 +873,27 @@ export const ratePrompt = async (req, res) => {
 };
 
 
-// search prompts by title description, tags, ai author, prompt, profession and other fields
+// search prompts by title description, tags, ai author, username, prompt, profession and other fields
+/**
+ * @swagger
+ * /prompts/search:
+ *   get:
+ *     summary: Search prompts
+ *     description: Search for prompts by various fields
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: query
+ *         name: query
+ *         required: true
+ *         description: Search query
+ *     responses:
+ *       200:
+ *         description: Prompts retrieved successfully
+ *       400:
+ *         description: Invalid search query
+ *       500:
+ *         description: Internal server error
+ */
 export const searchPrompts = async (req, res) => {
   try {
     const { query } = req.query;
@@ -539,6 +907,7 @@ export const searchPrompts = async (req, res) => {
         { description: { $regex: query, $options: 'i' } },
         { tags: { $regex: query, $options: 'i' } },
         { author: { $regex: query, $options: 'i' } },
+        { 'author.username': { $regex: query, $options: 'i' } },
         { ai: { $regex: query, $options: 'i' } },
         { profession: { $regex: query, $options: 'i' } },
         { prompt: { $regex: query, $options: 'i' } }
@@ -556,7 +925,27 @@ export const searchPrompts = async (req, res) => {
 
 
 
-// Increment prompt view count
+// Increment prompt view count based on clicks
+/**
+ * @swagger
+ * /prompts/{id}/views:
+ *   post:
+ *     summary: Increment prompt views
+ *     description: Increment the view count for a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Prompt views incremented successfully
+ *       404:
+ *         description: Prompt not found
+ *       500:
+ *         description: Internal server error
+ */
 export const incrementPromptViews = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id);
@@ -578,6 +967,26 @@ export const incrementPromptViews = async (req, res) => {
 
 
 // get prompt view count
+/**
+ * @swagger
+ * /prompts/{id}/views:
+ *   get:
+ *     summary: Get prompt views
+ *     description: Get the view count for a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Prompt views retrieved successfully
+ *       404:
+ *         description: Prompt not found
+ *       500:
+ *         description: Internal server error
+ */
 export const getPromptViews = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id);
@@ -596,6 +1005,26 @@ export const getPromptViews = async (req, res) => {
 
 
 // Upvote a prompt
+/**
+ * @swagger
+ * /prompts/{id}/upvote:
+ *   post:
+ *     summary: Upvote a prompt
+ *     description: Increment the upvote count for a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Prompt upvoted successfully
+ *       404:
+ *         description: Prompt not found
+ *       500:
+ *         description: Internal server error
+ */
 export const upvotePrompt = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id);
@@ -616,6 +1045,26 @@ export const upvotePrompt = async (req, res) => {
 };
 
 // Downvote a prompt
+/**
+ * @swagger
+ * /prompts/{id}/downvote:
+ *   post:
+ *     summary: Downvote a prompt
+ *     description: Increment the downvote count for a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Prompt downvoted successfully
+ *       404:
+ *         description: Prompt not found
+ *       500:
+ *         description: Internal server error
+ */
 export const downvotePrompt = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id);
@@ -637,6 +1086,26 @@ export const downvotePrompt = async (req, res) => {
 
 
 // get prompt upvote count
+/**
+ * @swagger
+ * /prompts/{id}/upvote:
+ *   get:
+ *     summary: Get prompt upvotes
+ *     description: Get the upvote count for a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Prompt upvotes retrieved successfully
+ *       404:
+ *         description: Prompt not found
+ *       500:
+ *         description: Internal server error
+ */
 export const getPromptUpvotes = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id);
@@ -655,6 +1124,26 @@ export const getPromptUpvotes = async (req, res) => {
 
 
 // get prompt downvote count
+/**
+ * @swagger
+ * /prompts/{id}/downvote:
+ *   get:
+ *     summary: Get prompt downvotes
+ *     description: Get the downvote count for a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Prompt downvotes retrieved successfully
+ *       404:
+ *         description: Prompt not found
+ *       500:
+ *         description: Internal server error
+ */
 export const getPromptDownvotes = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id);
@@ -673,6 +1162,19 @@ export const getPromptDownvotes = async (req, res) => {
 
 
 // get popular prompts
+/**
+ * @swagger
+ * /prompts/popular:
+ *   get:
+ *     summary: Get popular prompts
+ *     description: Get a list of the most popular prompts based on upvotes
+ *     tags: [Prompts]
+ *     responses:
+ *       200:
+ *         description: Popular prompts retrieved successfully
+ *       500:
+ *         description: Internal server error
+ */
 export const getPopularPrompts = async (req, res) => {
   try {
     const prompts = await Prompt.find().sort({ upvotes: -1 }).limit(10);
@@ -688,6 +1190,26 @@ export const getPopularPrompts = async (req, res) => {
 
 
 // get prompts favorited by user
+/**
+ * @swagger
+ * /favorites/user/:userId:
+ *   get:
+ *     summary: Get user favorite prompts
+ *     description: Get a list of prompts favorited by a specific user
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the user
+ *     responses:
+ *       200:
+ *         description: User favorite prompts retrieved successfully
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
 export const getUserFavoritePrompts = async (req, res) => {
   try {
     const userId = req.params.id;
@@ -703,6 +1225,26 @@ export const getUserFavoritePrompts = async (req, res) => {
 
 
 // Favorite a prompt
+/**
+ * @swagger
+ * /prompts/{id}/favorite:
+ *   post:
+ *     summary: Favorite a prompt
+ *     description: Add a prompt to the user's favorites
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Prompt favorited successfully
+ *       404:
+ *         description: User or prompt not found
+ *       500:
+ *         description: Internal server error
+ */
 export const favoritePrompt = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -723,6 +1265,26 @@ export const favoritePrompt = async (req, res) => {
 };
 
 // Remove prompt from favorites
+/**
+ * @swagger
+ * /prompts/{id}/unfavorite:
+ *   post:
+ *     summary: Remove a prompt from favorites
+ *     description: Remove a prompt from the user's favorites
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Prompt unfavorited successfully
+ *       404:
+ *         description: User or prompt not found
+ *       500:
+ *         description: Internal server error
+ */
 export const removePromptFromFavorites = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -744,6 +1306,26 @@ export const removePromptFromFavorites = async (req, res) => {
 
 
 // Get comments for a prompt
+/**
+ * @swagger
+ * /prompts/{id}/comments:
+ *   get:
+ *     summary: Get comments for a prompt
+ *     description: Retrieve a list of comments for a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Comments retrieved successfully
+ *       404:
+ *         description: Prompt not found
+ *       500:
+ *         description: Internal server error
+ */
 export const getPromptComments = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id).populate('comments');
@@ -762,6 +1344,26 @@ export const getPromptComments = async (req, res) => {
 
 
 // Add comment to a prompt
+/**
+ * @swagger
+ * /prompts/{id}/comments:
+ *   post:
+ *     summary: Add a comment to a prompt
+ *     description: Add a comment to a specific prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *     responses:
+ *       200:
+ *         description: Comment added successfully
+ *       404:
+ *         description: Prompt not found
+ *       500:
+ *         description: Internal server error
+ */
 export const addCommentToPrompt = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id);
@@ -790,31 +1392,88 @@ export const addCommentToPrompt = async (req, res) => {
 
 
 // rate a comment
+/**
+ * @swagger
+ * /prompts/{id}/comments/{commentId}/rate:
+ *   post:
+ *     summary: Rate a comment
+ *     description: Rate a specific comment on a prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         description: ID of the comment
+ *     responses:
+ *       200:
+ *         description: Comment rated successfully
+ *       404:
+ *         description: Prompt or comment not found
+ *       500:
+ *         description: Internal server error
+ */
 export const rateComment = async (req, res) => {
-  try {
-    const prompt = await Prompt.findById(req.params.id);
-    if (!prompt) {
-      return res.status(404).json({ error: 'Prompt not found' });
+    try {
+        const prompt = await Prompt.findById(req.params.id);
+        if (!prompt) {
+            return res.status(404).json({ error: 'Prompt not found' });
+        }
+
+        const comment = prompt.comments.id(req.params.commentId);
+        if (!comment) {
+            return res.status(404).json({ error: 'Comment not found' });
+        }
+
+        const existingRating = comment.ratings.find(r => r.user.toString() === req.user.id);
+        if (existingRating) {
+            existingRating.value = req.body.value;
+        } else {
+            comment.ratings.push({
+                user: req.user.id,
+                value: req.body.value
+            });
+        }
+
+        await prompt.save();
+
+        res.json({
+            success: true,
+            data: comment
+        });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
     }
-
-    const comment = prompt.comments.id(req.params.commentId);
-    if (!comment) {
-      return res.status(404).json({ error: 'Comment not found' });
-    }
-
-    comment.ratings.push(req.user.id);
-    await comment.save();
-
-    res.json({
-      success: true,
-      data: comment
-    });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
 };
 
 // get comment ratings
+/**
+ * @swagger
+ * /prompts/{id}/comments/{commentId}/ratings:
+ *   get:
+ *     summary: Get ratings for a comment
+ *     description: Retrieve all ratings for a specific comment on a prompt
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the prompt
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         description: ID of the comment
+ *     responses:
+ *       200:
+ *         description: Ratings retrieved successfully
+ *       404:
+ *         description: Prompt or comment not found
+ *       500:
+ *         description: Internal server error
+ */
 export const getCommentRatings = async (req, res) => {
   try {
     const prompt = await Prompt.findById(req.params.id);

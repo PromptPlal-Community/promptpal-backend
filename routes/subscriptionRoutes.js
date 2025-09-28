@@ -12,7 +12,7 @@ const router = express.Router();
 
 router.post("/", protect, activateFreePlan);
 router.get("/", protect, getAvailablePlans);
-router.delete("/:id", protect, cancelSubscription);
+router.delete("/:id/cancel", protect, cancelSubscription);
 router.get("/usage", protect, checkUsageLimits);
 
 export default router;

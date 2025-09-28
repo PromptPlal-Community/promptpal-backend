@@ -140,11 +140,21 @@ const PromptSchema = new mongoose.Schema({
       required: true,
       maxlength: 500
     },
-    rating: {
-      type: Number,
-      min: 1,
-      max: 5
-    },
+    ratings: [{
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      value: {
+        type: Number,
+        min: 1,
+        max: 5
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
     createdAt: {
       type: Date,
       default: Date.now

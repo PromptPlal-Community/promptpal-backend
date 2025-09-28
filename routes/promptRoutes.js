@@ -25,6 +25,7 @@ import {
     removePromptFromFavorites,
     rateComment,
     getCommentRatings,
+    getUserPrompts,
 
 } from "../controllers/promptController.js";
 
@@ -32,8 +33,9 @@ import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/",  upload.array('images', 2), protect, createPrompt);
-router.get("/", protect, getAllPrompts);
+router.post("/", upload.array('images', 2), protect, createPrompt);
+router.get("/filtered", protect, getAllPrompts);
+router.get("/", protect, getUserPrompts);
 router.get("/:id", protect, getPromptById);
 router.put("/:id", upload.array('images', 2), protect, updatePrompt);
 router.delete("/:id", protect, deletePrompt);
