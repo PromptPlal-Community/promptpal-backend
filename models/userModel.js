@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
 const UserSchema = new mongoose.Schema({
+  googleId: { type: String, required: true, unique: true },
   name: {
     type: String,
     default: "",
@@ -32,6 +33,7 @@ const UserSchema = new mongoose.Schema({
     required: true,
     minlength: 6
   },
+  isPasswordLinked: { type: Boolean, default: false },
   avatar: {
     type: String,
     default: ""

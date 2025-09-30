@@ -80,6 +80,37 @@ const swaggerDefinition = {
           }
         }
       },
+    AuthResponse: {
+      type: "object",
+      properties: {
+        token: { type: "string", description: "JWT token for authentication" },
+        user: {
+          type: "object",
+          properties: {
+            _id: { type: "string" },
+            name: { type: "string" },
+            email: { type: "string" },
+            googleId: { type: "string", nullable: true },
+            isPasswordLinked: { type: "boolean" }
+          }
+        }
+      }
+    },
+    LoginRequest: {
+      type: "object",
+      required: ["email", "password"],
+      properties: {
+        email: { type: "string", format: "email" },
+        password: { type: "string", minLength: 6 }
+      }
+    },
+    LinkPasswordRequest: {
+      type: "object",
+      required: ["password"],
+      properties: {
+        password: { type: "string", minLength: 6 }
+      }
+    },
       Prompt: {
         type: 'object',
         required: ['title', 'description', 'promptText', 'aiTool'],
@@ -221,7 +252,7 @@ const swaggerDefinition = {
   tags: [
     {
       name: 'Authentication',
-      description: 'User registration and login endpoints'
+      description: 'User registration, login, and hybrid Google/Email authentication endpoints'
     },
     {
       name: 'Users',

@@ -13,6 +13,7 @@ import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import connectDB from './config/db.js';
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "./config/swagger.js";
+import passport from './config/passport.js';
 
 dotenv.config();
 
@@ -53,6 +54,9 @@ app.get('/api/', (req, res) => {
 app.use('/api/auth', limiter, authRoutes);
 app.use('/api/prompts', promptRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+
+// Google Auth
+app.use(passport.initialize());
 
 // === Swagger Docs ===
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));

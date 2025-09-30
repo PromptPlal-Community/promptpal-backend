@@ -12,11 +12,7 @@ const generateAccessToken = (user) => {
   });
 };
 
-const generateRefreshToken = (user) => {
-  return jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: "7d",
-  });
-};
+
 
 // REGISTER with basic details and basic free subscription
 /**
@@ -234,6 +230,72 @@ export const registerUser = async (req, res) => {
   }
 };
 
+
+// Link email/password to Google account
+/**
+ * @swagger
+ * /auth/link-password:
+ *   post:
+ *     summary: Link email/password login to a Google account
+ *     security:
+ *      - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LinkPasswordRequest'
+ *     responses:
+ *       200:
+ *         description: Password linked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Password successfully linked, you can now log in with email"
+ *       400:
+ *         description: Password already linked or invalid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+export const linkGooglePassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 chars" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (user.isPasswordLinked) {
+      return res.status(400).json({ message: "Password already linked" });
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    user.isPasswordLinked = true;
+    await user.save();
+
+    res.json({ message: "Password successfully linked, you can now log in with email" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+
+
 // LOGIN
 /**
  * @swagger
@@ -296,7 +358,7 @@ export const loginUser = async (req, res) => {
     } else if (username) {
       user = await User.findOne({ username });
     }
-    if (!user) {
+    if (!user || user.isPasswordLinked) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 

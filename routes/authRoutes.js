@@ -12,10 +12,98 @@ import {
   handleGetUserProfile,
   handleUpdateUserProfile,
   handleUpdateProfession,
+  linkGooglePassword,
 
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
+import passport from 'passport';
+import User from '../models/userModel.js';
 const router = express.Router();
+
+
+// Google Auth
+/**
+ * @swagger
+ * /auth/google/callback:
+ *   get:
+ *     summary: Register a new user via Google
+ *     tags: [Authentication]
+ *     description: Google redirects back here. Exchanges code for tokens and logs in the user.
+ *     responses:
+ *       200:
+ *         description: Returns JWT and user profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ */
+router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+
+
+
+/**
+ * @swagger
+ * /auth/link/google:
+ *   get:
+ *     summary: Redirect to Google to link account
+ *     tags: [Authentication]
+ *     security:
+ *      - bearerAuth: []
+ *     responses:
+ *       302:
+ *         description: Redirects to Google for linking
+ */
+router.get(
+  "/google/callback",
+  passport.authenticate("google", { failureRedirect: "/login", session: false }),
+  (req, res) => {
+    const token = jwt.sign(
+      { id: req.user._id, email: req.user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.json({ token, user: req.user });
+  }
+);
+
+
+// Callback after Google approval
+/**
+ * @swagger
+ * /auth/link/google/callback:
+ *   get:
+ *     summary: Google callback for account linking
+ *     tags: [Authentication]
+ *     security:
+ *      - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successfully linked Google account
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: Google account linked successfully }
+ *                 user: { $ref: '#/components/schemas/AuthResponse' }
+ */
+router.get("/link/google/callback", protect, passport.authenticate("google", { failureRedirect: "/login", session: false }),
+  async (req, res) => {
+    const user = await User.findById(req.user._id);
+
+    // If user already has googleId, skip
+    if (!user.googleId) {
+      user.googleId = req.user.googleId;
+      user.avatar = req.user.avatar;
+      await user.save();
+    }
+
+    res.json({ message: "Google account linked successfully", user });
+  }
+);
+
+router.post("/link-password", protect, linkGooglePassword);
 
 router.post('/register', registerUser);
 router.post('/verify-email', verifyEmail);
