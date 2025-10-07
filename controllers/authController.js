@@ -381,11 +381,13 @@ export const loginUser = async (req, res) => {
 
     // Update last login
     user.lastLogin = new Date();
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+    user.refreshToken = refreshToken;
     await user.save();
 
     // Generate tokens
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+
 
     // Set cookies
     res.cookie("accessToken", accessToken, {
