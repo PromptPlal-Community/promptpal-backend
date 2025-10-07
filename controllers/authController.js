@@ -6,9 +6,16 @@ import { sendOTPEmail, sendWelcomeEmail } from "../utils/sendEmail.js";
 import SubscriptionPlan from "../models/SubscriptionPlanModel.js";
 import e from "express";
 
+// Token generation functions
 const generateAccessToken = (user) => {
   return jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
     expiresIn: "15m",
+  });
+};
+
+const generateRefreshToken = (user) => {
+  return jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: "7d",
   });
 };
 
@@ -109,11 +116,11 @@ export const registerUser = async (req, res) => {
     let freePlan = await SubscriptionPlan.findOne({ name: 'basic' });
 
     if (freePlan) {
-    // If the plan exists but is not free, update it to be free
-    if (!freePlan.isFree) {
+      // If the plan exists but is not free, update it to be free
+      if (!freePlan.isFree) {
         freePlan.isFree = true;
         await freePlan.save();
-    }
+      }
     } else {
       // If the plan doesn't exist, create it
       console.log('Creating basic free plan...');
@@ -351,14 +358,14 @@ export const loginUser = async (req, res) => {
   try {
     const { email, password, username } = req.body;
 
-      // Check username if provided and allow user to login with either email or username
     let user;
     if (email) {
       user = await User.findOne({ email });
     } else if (username) {
       user = await User.findOne({ username });
     }
-    if (!user || user.isPasswordLinked) {
+    
+    if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
@@ -379,29 +386,27 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Update last login
     user.lastLogin = new Date();
+    
+    
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
     user.refreshToken = refreshToken;
     await user.save();
 
-    // Generate tokens
 
-
-    // Set cookies
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "Strict",
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: 15 * 60 * 1000,
     });
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "Strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.status(200).json({
@@ -489,6 +494,8 @@ export const refreshAccessToken = async (req, res) => {
     res.status(403).json({ message: "Expired or invalid refresh token" });
   }
 };
+
+
 
 // LOGOUT
 /**
