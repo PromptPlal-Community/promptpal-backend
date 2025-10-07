@@ -19,6 +19,10 @@ dotenv.config();
 
 const app = express();
 
+// === Trust Proxy Configuration ===
+
+app.set('trust proxy', 1);
+
 // === Middleware ===
 app.use(helmet());
 app.use(
@@ -80,5 +84,5 @@ connectDB()
   })
   .catch((err) => {
     console.error("Database connection failed:", err);
-    process.exit(1);
+    process.exit(1);S
   });
