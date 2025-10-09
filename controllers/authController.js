@@ -668,7 +668,14 @@ export const verifyEmailOTP = async (req, res) => {
 export const resendOTP = async (req, res) => {
   try {
     const { email } = req.body;
+    console.log('Resend OTP request for email:', email);
+    
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
     const user = await User.findOne({ email });
+    console.log('User found:', user ? user.email : 'No user found');
     
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -676,12 +683,23 @@ export const resendOTP = async (req, res) => {
 
     // Generate new OTP
     const otp = crypto.randomInt(100000, 999999).toString();
+    console.log('Generated OTP:', otp);
+    
     user.otp = otp;
     user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-    await user.save();
+    
+    try {
+      await user.save();
+      console.log('User saved with new OTP');
+    } catch (saveError) {
+      console.error('Error saving user:', saveError);
+      return res.status(500).json({ message: "Failed to save OTP" });
+    }
 
     try {
+      console.log('Attempting to send OTP email to:', email);
       await sendOTPEmail(email, "Your new OTP Code", otp);
+      console.log('OTP email sent successfully');
       res.status(200).json({ message: "OTP resent successfully" });
     } catch (emailError) {
       console.error('Email error:', emailError);
