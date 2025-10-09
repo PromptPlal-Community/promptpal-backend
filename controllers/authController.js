@@ -180,7 +180,7 @@ export const registerUser = async (req, res) => {
       isEmailVerified: false,
       subscription: {
         planId: freePlan._id,
-        status: 'trial',
+        status: 'free',
         currentPeriodStart: new Date(),
         currentPeriodEnd: trialEnds,
         trialEndsAt: trialEnds
