@@ -50,7 +50,6 @@ router.post("/:id/upvote", protect, upvotePrompt);
 router.post("/:id/downvote", protect, downvotePrompt);
 router.get("/:id/upvotes", protect, getPromptUpvotes);
 router.get("/:id/downvotes", protect, getPromptDownvotes);
-router.get("/popular", protect, getPopularPrompts);
 router.get("/favorites/user/:userId", protect, getUserFavoritePrompts);
 router.post("/:id/favorite", protect, favoritePrompt);
 router.delete("/:id/favorite", protect, removePromptFromFavorites);
@@ -58,5 +57,6 @@ router.post("/:id/comments", protect, addCommentToPrompt);
 router.get("/:id/comments", protect, getPromptComments);
 router.post("/:id/comments/:commentId/rate", protect, rateComment);
 router.get("/:id/comments/:commentId/ratings", protect, getCommentRatings);
+router.get("/popular", getPopularPrompts);
 
 export default router;
