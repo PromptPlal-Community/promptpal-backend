@@ -1,27 +1,10 @@
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-// SendGrid transporter
-function createTransporter() {
-  
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.sendgrid.net',
-    port: 587,
-    secure: false,
-    auth: {
-      user: 'apikey', 
-      pass: process.env.SENDGRID_API_KEY 
-    },
-
-    connectionTimeout: 30000,
-    greetingTimeout: 30000,
-    socketTimeout: 30000
-  });
-
-  return transporter;
-}
+// Initialize SendGrid with API key
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // Email wrapper for consistent branding
 const emailWrapper = (content) => `
@@ -39,31 +22,38 @@ const emailWrapper = (content) => `
   </div>
 `;
 
-// Generic email sending function
+// Generic email sending function using SendGrid Web API
 export async function sendEmail(to, subject, html, text = '') {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
+    console.log(`📧 Sending email to: ${to}`);
+    
+    const msg = {
+      to: to,
       from: {
         name: 'Prompt Palace Community',
-        address: process.env.SENDGRID_FROM_EMAIL || 'promptpalcommunity@gmail.com'
+        email: process.env.SENDGRID_FROM_EMAIL || 'promptpalcommunity@gmail.com'
       },
-      to: to,
       subject: subject,
       text: text,
-      html: html
+      html: html,
     };
 
-    const result = await transporter.sendMail(mailOptions);
+    const response = await sgMail.send(msg);
+    console.log('✅ Email sent successfully via SendGrid API');
+    console.log('📧 Status Code:', response[0].statusCode);
     
     return {
       success: true,
-      messageId: result.messageId,
-      response: result.response
+      statusCode: response[0].statusCode,
+      headers: response[0].headers,
     };
   } catch (error) {
-    console.error('❌ Error sending email via SendGrid:', error);
+    console.error('❌ Error sending email via SendGrid API:', error);
+    
+    if (error.response) {
+      console.error('SendGrid API Response:', error.response.body);
+    }
+    
     throw new Error(`Failed to send email: ${error.message}`);
   }
 }
@@ -204,6 +194,7 @@ export const sendCancellationEmail = async (to, plan, name = 'there') => {
 // Test function
 export const testEmailService = async () => {
   try {
+    console.log('🧪 Testing SendGrid Web API...');
     
     // Test with your own email
     const testEmail = process.env.TEST_EMAIL || 'test@example.com';
@@ -211,12 +202,15 @@ export const testEmailService = async () => {
     const result = await sendWelcomeEmail(testEmail, 'Test User');
     
     if (result.success) {
+      console.log('✅ SendGrid Web API test passed!');
+      console.log('📧 Status Code:', result.statusCode);
     } else {
+      console.log('❌ SendGrid Web API test failed');
     }
     
     return result;
   } catch (error) {
-    console.error('💥 SendGrid email service test failed:', error);
+    console.error('💥 SendGrid Web API test failed:', error.message);
     throw error;
   }
 };
@@ -230,9 +224,6 @@ export default {
   testEmailService,
   sendEmail
 };
-
-
-
 
 
 
