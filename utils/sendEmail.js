@@ -16,7 +16,6 @@ oauth2Client.setCredentials({
 
 async function getAccessToken() {
   try {
-    
     // Check if token needs refresh
     if (!oauth2Client.credentials.expiry_date || Date.now() > oauth2Client.credentials.expiry_date - 300000) {
       const { credentials } = await oauth2Client.refreshAccessToken();
@@ -44,8 +43,14 @@ async function createTransporter() {
       throw new Error('No access token available');
     }
 
+    console.log('🔧 Creating SMTP transporter for cloud environment...');
+
+    // SMTP configuration for cloud environments
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587, // Use port 587 with TLS
+      secure: false, // false for TLS
+      requireTLS: true, // Require TLS
       auth: {
         type: 'OAuth2',
         user: process.env.GMAIL_USER,
@@ -53,16 +58,102 @@ async function createTransporter() {
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
         accessToken: accessToken
+      },
+      // Cloud-optimized settings
+      connectionTimeout: 30000, // 30 seconds
+      greetingTimeout: 30000,
+      socketTimeout: 30000,
+      // Additional settings for better cloud compatibility
+      tls: {
+        rejectUnauthorized: false // May be needed in some cloud environments
       }
     });
 
+    console.log('🔧 Verifying SMTP connection...');
     await transporter.verify();
+    console.log('✅ SMTP transporter ready with OAuth2');
     
     return transporter;
   } catch (error) {
-    console.error('❌ Error creating transporter:', error.message);
-    throw error;
+    console.error('❌ Error creating SMTP transporter:', error.message);
+    
+    // If OAuth2 fails, try with app password as fallback
+    console.log('🔄 Attempting fallback to app password...');
+    return createAppPasswordTransporter();
   }
+}
+
+// Fallback transporter using app password
+function createAppPasswordTransporter() {
+  console.log('🔧 Creating fallback transporter with app password...');
+  
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD // Make sure this is set in your env
+    },
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
+    tls: {
+      rejectUnauthorized: false
+    }
+  });
+
+  return transporter;
+}
+
+// Alternative: Try different ports if 587 fails
+async function createTransporterWithRetry() {
+  const ports = [587, 465]; // Try TLS first, then SSL
+  let lastError;
+
+  for (const port of ports) {
+    try {
+      const accessToken = await getAccessToken();
+      
+      if (!accessToken) {
+        throw new Error('No access token available');
+      }
+
+      console.log(`🔧 Trying port ${port}...`);
+      
+      const transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: port,
+        secure: port === 465, // true for SSL (465), false for TLS (587)
+        auth: {
+          type: 'OAuth2',
+          user: process.env.GMAIL_USER,
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
+          accessToken: accessToken
+        },
+        connectionTimeout: 20000,
+        greetingTimeout: 20000,
+        socketTimeout: 20000,
+        tls: {
+          rejectUnauthorized: false
+        }
+      });
+
+      await transporter.verify();
+      console.log(`✅ SMTP connection successful on port ${port}`);
+      return transporter;
+      
+    } catch (error) {
+      lastError = error;
+      console.log(`❌ Port ${port} failed: ${error.message}`);
+      continue;
+    }
+  }
+
+  throw new Error(`All SMTP ports failed. Last error: ${lastError.message}`);
 }
 
 // Email wrapper for consistent branding
@@ -81,35 +172,53 @@ const emailWrapper = (content) => `
   </div>
 `;
 
-// Generic email sending function
+// Generic email sending function with retry logic
 export async function sendEmail(to, subject, html, text = '') {
-  try {
-    const transporter = await createTransporter();
+  const maxRetries = 2;
+  let lastError;
 
-    const mailOptions = {
-      from: {
-        name: 'Prompt Palace Community',
-        address: process.env.GMAIL_USER
-      },
-      to: to,
-      subject: subject,
-      text: text,
-      html: html
-    };
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`📧 Attempt ${attempt}: Sending email to ${to}`);
+      
+      // Use the retry version that tries multiple ports
+      const transporter = await createTransporterWithRetry();
 
-    console.log(`📧 Sending email to: ${to}`);
-    const result = await transporter.sendMail(mailOptions);
-    console.log('✅ Email sent successfully:', result.messageId);
-    
-    return {
-      success: true,
-      messageId: result.messageId,
-      response: result.response
-    };
-  } catch (error) {
-    console.error('❌ Error sending email:', error);
-    throw new Error(`Failed to send email: ${error.message}`);
+      const mailOptions = {
+        from: {
+          name: 'Prompt Palace Community',
+          address: process.env.GMAIL_USER
+        },
+        to: to,
+        subject: subject,
+        text: text,
+        html: html
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      console.log('✅ Email sent successfully!');
+      
+      // Close the transporter to free up resources
+      transporter.close();
+      
+      return {
+        success: true,
+        messageId: result.messageId,
+        response: result.response
+      };
+    } catch (error) {
+      lastError = error;
+      console.error(`❌ Attempt ${attempt} failed:`, error.message);
+      
+      if (attempt < maxRetries) {
+        console.log(`🔄 Retrying in 3 seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+    }
   }
+
+  console.error('❌ All email sending attempts failed');
+  throw new Error(`Failed to send email after ${maxRetries} attempts: ${lastError.message}`);
 }
 
 // OTP Email
@@ -188,87 +297,32 @@ export const sendWelcomeEmail = async (to, name) => {
   return await sendEmail(to, subject, html, text);
 };
 
-// Subscription Email
-export const sendSubscriptionEmail = async (to, plan, name = 'there') => {
-  const subject = `Welcome to ${plan} Plan - Prompt Palace`;
-  
-  const html = emailWrapper(`
-    <h2 style="color: #333; margin-top: 0;">Subscription Confirmed!</h2>
-    <p>Hello ${name},</p>
-    <p>Thank you for subscribing to our <strong>${plan}</strong> plan! We're excited to have you on board and can't wait to see what you'll create.</p>
-    
-    <div style="background: #f0f8f0; padding: 15px; border-radius: 5px; margin: 20px 0;">
-      <h3 style="margin-top: 0; color: #270450;">Your ${plan} Plan Includes:</h3>
-      <ul style="margin-bottom: 0;">
-        <li>Access to premium prompts</li>
-        <li>Enhanced community features</li>
-        <li>Priority support</li>
-        <li>And much more!</li>
-      </ul>
-    </div>
-    
-    <p>Your subscription is now active. You'll receive a separate receipt for your payment.</p>
-    <p>Need help? Our support team is here for you!</p>
-  `);
-
-  const text = `Thank you for subscribing to the ${plan} plan at Prompt Palace Community! Your subscription is now active and you have access to all premium features.`;
-
-  return await sendEmail(to, subject, html, text);
-};
-
-// Cancellation Email
-export const sendCancellationEmail = async (to, plan, name = 'there') => {
-  const subject = `We're Sorry to See You Go - Prompt Palace`;
-  
-  const html = emailWrapper(`
-    <h2 style="color: #333; margin-top: 0;">Subscription Cancelled</h2>
-    <p>Hello ${name},</p>
-    <p>Your subscription to the <strong>${plan}</strong> plan has been cancelled.</p>
-    <p>We're genuinely sorry to see you go and would love to understand how we could have served you better.</p>
-    
-    <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0;">
-      <h3 style="margin-top: 0; color: #270450;">We'd Love Your Feedback</h3>
-      <p>Your experience helps us improve. If you have a moment, please reply to this email and let us know:</p>
-      <ul style="margin-bottom: 0;">
-        <li>What prompted your decision to cancel?</li>
-        <li>How could we have provided a better experience?</li>
-        <li>Would you consider returning in the future?</li>
-      </ul>
-    </div>
-    
-    <p>You'll continue to have access to your plan features until the end of your billing period.</p>
-    <p>Thank you for being part of our community. We hope to see you again!</p>
-  `);
-
-  const text = `Your ${plan} subscription at Prompt Palace Community has been cancelled. We're sorry to see you go and would appreciate any feedback about your experience.`;
-
-  return await sendEmail(to, subject, html, text);
-};
-
 // Test function
 export const testEmailService = async () => {
   try {
-    console.log('🧪 Testing email service...');
+    console.log('🧪 Testing email service on cloud...');
     
-    // Test with your own email
     const testEmail = process.env.GMAIL_USER;
-    
     const result = await sendWelcomeEmail(testEmail, 'Test User');
     
     if (result.success) {
       console.log('✅ Email service test passed!');
-      console.log('📧 Message ID:', result.messageId);
-    } else {
-      console.log('❌ Email service test failed');
     }
     
     return result;
   } catch (error) {
-    console.error('💥 Email service test failed:', error);
+    console.error('💥 Email service test failed:', error.message);
     throw error;
   }
 };
 
+export default {
+  sendOTPEmail,
+  sendForgotPasswordEmail,
+  sendWelcomeEmail,
+  testEmailService,
+  sendEmail
+};
 
 
 // Email configuration using Resend for domain verification
