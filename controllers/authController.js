@@ -201,7 +201,7 @@ export const registerUser = async (req, res) => {
     });
 
     try {
-      await sendOTPEmail(email, "Verify your email", otp);
+      await sendOTPEmail(email, otp);
       console.log({ email, otp });
     } catch (emailError) {
       console.error('Email error:', emailError);
