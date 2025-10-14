@@ -23,11 +23,15 @@ const app = express();
 
 app.set('trust proxy', 1);
 
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'https://promptpal-frontend-m1a2.vercel.app',
+];
 // === Middleware ===
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "https://promptpal-frontend-m1a2.vercel.app",
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
   })
