@@ -6,7 +6,7 @@ class CloudinaryService {
   // Upload buffer to Cloudinary
   async uploadBuffer(buffer, options = {}) {
     return new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.v2.uploader.upload_stream(
+      const uploadStream = cloudinary.uploader.upload_stream( 
         {
           folder: options.folder || 'prompt_images',
           transformation: [
@@ -33,7 +33,7 @@ class CloudinaryService {
   // Upload file to Cloudinary
   async uploadFile(filePath, options = {}) {
     try {
-      const result = await cloudinary.v2.uploader.upload(filePath, {
+      const result = await cloudinary.uploader.upload(filePath, { // Remove .v2
         folder: options.folder || 'prompt_images',
         transformation: [
           {
@@ -62,7 +62,7 @@ class CloudinaryService {
   // Delete image from Cloudinary
   async deleteImage(publicId) {
     try {
-      const result = await cloudinary.v2.uploader.destroy(publicId);
+      const result = await cloudinary.uploader.destroy(publicId); // Remove .v2
       return result;
     } catch (error) {
       throw new Error(`Cloudinary deletion failed: ${error.message}`);
@@ -72,7 +72,7 @@ class CloudinaryService {
   // Delete multiple images
   async deleteMultiple(publicIds) {
     try {
-      const result = await cloudinary.v2.api.delete_resources(publicIds);
+      const result = await cloudinary.api.delete_resources(publicIds); // Remove .v2
       return result;
     } catch (error) {
       throw new Error(`Cloudinary multiple deletion failed: ${error.message}`);
@@ -81,7 +81,7 @@ class CloudinaryService {
 
   // Generate thumbnail URL
   generateThumbnailUrl(publicId, width = 300, height = 200) {
-    return cloudinary.v2.url(publicId, {
+    return cloudinary.url(publicId, { // Remove .v2
       width,
       height,
       crop: 'fill',
@@ -92,7 +92,7 @@ class CloudinaryService {
 
   // Generate optimized URL
   generateOptimizedUrl(publicId, width = 1200, height = 800) {
-    return cloudinary.v2.url(publicId, {
+    return cloudinary.url(publicId, { // Remove .v2
       width,
       height,
       crop: 'limit',
@@ -105,7 +105,7 @@ class CloudinaryService {
   generateResponsiveUrls(publicId, sizes = [300, 600, 900, 1200]) {
     return sizes.map(size => ({
       width: size,
-      url: cloudinary.v2.url(publicId, {
+      url: cloudinary.url(publicId, { // Remove .v2
         width: size,
         crop: 'scale',
         quality: 'auto',
@@ -116,7 +116,7 @@ class CloudinaryService {
 
   // Apply advanced transformations
   applyTransformations(publicId, transformations = []) {
-    return cloudinary.v2.url(publicId, {
+    return cloudinary.url(publicId, { // Remove .v2
       transformation: transformations
     });
   }
