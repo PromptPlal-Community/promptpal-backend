@@ -29,17 +29,17 @@ const initPlans = async () => {
           maxImageSize: 5, // 5MB
           maxImagesPerPrompt: 5,
           maxCommunities: 2,
-          canCreatePrivate: false,
+          canCreatePrivate: true,
           canExport: false,
           maxPromptLength: 1000,
-          aiTools: ['ChatGPT', 'Other']
+          aiTools: ['ChatGPT', 'Claude', 'Bard', 'Midjourney', 'DALL-E', 'Stable Diffusion', 'Other']
         },
         features: [
           { name: 'Create Public Prompts', included: true },
           { name: 'Join Communities', included: true },
           { name: 'Basic AI Tools', included: true },
           { name: 'Image Uploads', included: true },
-          { name: 'Private Prompts', included: false },
+          { name: 'Private Prompts', included: true },
           { name: 'Export Features', included: false }
         ],
         isActive: true
@@ -65,7 +65,7 @@ const initPlans = async () => {
           canCreatePrivate: true,
           canExport: true,
           maxPromptLength: 5000,
-          aiTools: ['ChatGPT', 'Claude', 'Bard', 'Other']
+          aiTools: ['ChatGPT', 'Claude', 'Bard', 'Midjourney', 'DALL-E', 'Stable Diffusion', 'Other']
         },
         features: [
           { name: 'Create Public Prompts', included: true },

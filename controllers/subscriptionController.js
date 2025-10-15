@@ -142,7 +142,7 @@ export const checkUsageLimits = async (req, res) => {
         canCreatePrivate: plan ? plan.limits.canCreatePrivate : false,
         canExport: plan ? plan.limits.canExport : false,
         maxCommunities: plan ? plan.limits.maxCommunities : 1,
-        aiTools: plan ? plan.limits.aiTools : ['ChatGPT', 'Other']
+        aiTools: plan ? plan.limits.aiTools : ['ChatGPT', 'Claude', 'Bard', 'Midjourney', 'DALL-E', 'Stable Diffusion', 'Other']
       }
     });
   } catch (error) {

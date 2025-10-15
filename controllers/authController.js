@@ -122,8 +122,6 @@ export const registerUser = async (req, res) => {
         await freePlan.save();
       }
     } else {
-      // If the plan doesn't exist, create it
-      console.log('Creating basic free plan...');
       freePlan = await SubscriptionPlan.create({
         name: 'basic',
         displayName: 'Basic Plan',
@@ -142,17 +140,17 @@ export const registerUser = async (req, res) => {
           maxImageSize: 5,
           maxImagesPerPrompt: 5,
           maxCommunities: 2,
-          canCreatePrivate: false,
+          canCreatePrivate: true,
           canExport: false,
           maxPromptLength: 1000,
-          aiTools: ['ChatGPT', 'Other']
+          aiTools: ['ChatGPT', 'Claude', 'Bard', 'Midjourney', 'DALL-E', 'Stable Diffusion', 'Other']
         },
         features: [
           { name: 'Create Public Prompts', included: true },
           { name: 'Join Communities', included: true },
           { name: 'Basic AI Tools', included: true },
           { name: 'Image Uploads', included: true },
-          { name: 'Private Prompts', included: false },
+          { name: 'Private Prompts', included: true },
           { name: 'Export Features', included: false }
         ],
         isActive: true
@@ -202,13 +200,10 @@ export const registerUser = async (req, res) => {
 
     try {
       await sendOTPEmail(email, otp);
-      console.log({ email, otp });
     } catch (emailError) {
       console.error('Email error:', emailError);
-      // Still return success but log the email error
     }
 
-    // Populate the subscription plan details for response
     await newUser.populate('subscription.planId');
 
     res.status(201).json({
