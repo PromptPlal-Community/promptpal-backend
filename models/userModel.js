@@ -18,7 +18,11 @@ const UserSchema = new mongoose.Schema({
     unique: true,
     trim: true,
     minlength: 3,
-    maxlength: 30
+    maxlength: 30,
+    required: function() {
+      return !this.googleId;
+    },
+    sparse: true
   },
   email: {
     type: String,
@@ -30,11 +34,9 @@ const UserSchema = new mongoose.Schema({
     required: function() {
       return !this.googleId;
     },
-    unique: true,
     sparse: true
   },
-  phone:
-  {
+  phone: {
     type: String,
     default: ""
   },
@@ -42,8 +44,13 @@ const UserSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true,
-    minlength: 6
+    minlength: 6,
+    required: function() {
+      return !this.googleId; 
+    },
+    sparse: true
   },
+  
   isPasswordLinked: { type: Boolean, default: false },
   avatar: {
     type: String,
