@@ -98,7 +98,6 @@ router.get("/google/callback",
  *                 user: { $ref: '#/components/schemas/AuthResponse' }
  */
 router.get("/link/google/callback", 
-  protect, 
   passport.authenticate("google", { failureRedirect: "/login", session: false }),
   async (req, res) => {
     try {
