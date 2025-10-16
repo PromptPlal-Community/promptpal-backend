@@ -148,4 +148,47 @@ router.patch('/profile', protect, handleUpdateUserProfile);
 router.patch('/profile/profession', protect, handleUpdateProfession);
 
 
+
+// Add this to your routes/auth.js file
+router.get('/debug-google', (req, res) => {
+  const expectedUri = 'https://localhost:8000/api/auth/google/callback';
+  const actualUri = process.env.GOOGLE_CALLBACK_URL;
+  
+  const debugInfo = {
+    problem: "Google OAuth 'Bad Request' Error",
+    description: "This is almost always a redirect URI mismatch",
+    solution: "Follow the steps below to fix it",
+    
+    current_config: {
+      expected_redirect_uri: expectedUri,
+      actual_redirect_uri: actualUri,
+      uris_match: expectedUri === actualUri,
+      has_client_id: !!process.env.GOOGLE_CLIENT_ID,
+      has_client_secret: !!process.env.GOOGLE_CLIENT_SECRET
+    },
+    
+    fix_instructions: [
+      "1. Go to: https://console.cloud.google.com/",
+      "2. Select your project",
+      "3. Navigate to: APIs & Services → Credentials", 
+      "4. Click on your OAuth 2.0 Client ID",
+      `5. In 'Authorized redirect URIs' add: ${expectedUri}`,
+      "6. Remove any other URIs temporarily",
+      "7. Click SAVE",
+      "8. Wait 2 minutes and test again"
+    ],
+    
+    common_mistakes: [
+      "Using http:// instead of https://",
+      "Missing /api in the path", 
+      "promptpal-backend-j5gl.onrender.com vs your-custom-domain.com",
+      "Extra spaces in the URI",
+      "Missing /callback at the end"
+    ]
+  };
+  
+  console.log('GOOGLE OAUTH DEBUG INFO:', debugInfo);
+  res.json(debugInfo);
+});
+
 export default router;
