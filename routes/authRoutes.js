@@ -18,6 +18,7 @@ import {
 import { protect } from '../middleware/authMiddleware.js';
 import passport from 'passport';
 import User from '../models/userModel.js';
+import jwt from 'jsonwebtoken';
 const router = express.Router();
 
 
