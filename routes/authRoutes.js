@@ -53,8 +53,7 @@ router.get("/google", passport.authenticate("google", { scope: ["profile", "emai
  *       302:
  *         description: Redirects to Google for linking
  */
-router.get(
-  "/google/callback",
+router.get("/google/callback", 
   passport.authenticate("google", { failureRedirect: "/login", session: false }),
   (req, res) => {
     const token = jwt.sign(
@@ -63,7 +62,17 @@ router.get(
       { expiresIn: "7d" }
     );
 
-    res.json({ token, user: req.user });
+    const frontendUrl = process.env.CLIENT_URL || 'http://localhost:5173' || 'https://promptpal-frontend-m1a2.vercel.app';
+    const userData = encodeURIComponent(JSON.stringify({
+      _id: req.user._id,
+      email: req.user.email,
+      name: req.user.name,
+      username: req.user.username,
+      avatar: req.user.avatar,
+      googleId: req.user.googleId
+    }));
+    
+    res.redirect(`${frontendUrl}/auth/google/callback?token=${token}&user=${userData}`);
   }
 );
 
@@ -88,20 +97,34 @@ router.get(
  *                 message: { type: string, example: Google account linked successfully }
  *                 user: { $ref: '#/components/schemas/AuthResponse' }
  */
-router.get("/link/google/callback", protect, passport.authenticate("google", { failureRedirect: "/login", session: false }),
+router.get("/link/google/callback", 
+  protect, 
+  passport.authenticate("google", { failureRedirect: "/login", session: false }),
   async (req, res) => {
-    const user = await User.findById(req.user._id);
+    try {
+      const user = await User.findById(req.user._id);
 
-    // If user already has googleId, skip
-    if (!user.googleId) {
-      user.googleId = req.user.googleId;
-      user.avatar = req.user.avatar;
-      await user.save();
+      if (!user.googleId) {
+        user.googleId = req.user.googleId;
+        user.avatar = req.user.avatar;
+        await user.save();
+      }
+
+    const frontendUrl = process.env.CLIENT_URL || 'http://localhost:5173' || 'https://promptpal-frontend-m1a2.vercel.app';
+      const userData = encodeURIComponent(JSON.stringify({
+        googleId: user.googleId,
+        avatar: user.avatar
+      }));
+      
+      res.redirect(`${frontendUrl}/auth/google/callback?type=link&user=${userData}`);
+    } catch (error) {
+      const frontendUrl = process.env.CLIENT_URL || 'http://localhost:5173' || 'https://promptpal-frontend-m1a2.vercel.app';
+      res.redirect(`${frontendUrl}/auth/google/callback?error=${encodeURIComponent(error.message)}`);
     }
-
-    res.json({ message: "Google account linked successfully", user });
   }
 );
+
+
 
 router.post("/link-password", protect, linkGooglePassword);
 
