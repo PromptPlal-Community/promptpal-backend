@@ -191,4 +191,95 @@ router.get('/debug-google', (req, res) => {
   res.json(debugInfo);
 });
 
+
+// routes/auth.js - Add more detailed logging
+router.get('/google', (req, res, next) => {
+  console.log('🚀 Starting Google OAuth flow');
+  console.log('📋 Request details:', {
+    originalUrl: req.originalUrl,
+    query: req.query,
+    headers: req.headers
+  });
+  next();
+}, passport.authenticate('google', { 
+  scope: ['profile', 'email'],
+  accessType: 'offline',
+  prompt: 'consent' // Force consent screen
+}));
+
+router.get('/google/callback', (req, res, next) => {
+  console.log('🔄 Google callback received');
+  console.log('📋 Callback details:', {
+    query: req.query,
+    hasCode: !!req.query.code,
+    hasError: !!req.query.error,
+    fullUrl: req.protocol + '://' + req.get('host') + req.originalUrl
+  });
+  
+  if (req.query.error) {
+    console.error('❌ Google returned error:', req.query.error);
+    console.error('❌ Error description:', req.query.error_description);
+  }
+  
+  next();
+}, 
+  passport.authenticate('google', { 
+    session: false,
+    failureRedirect: '/auth/failure' 
+  }),
+  (req, res) => {
+    try {
+      console.log('✅ Authentication successful, creating JWT');
+      
+      if (!process.env.JWT_SECRET) {
+        throw new Error('JWT_SECRET missing');
+      }
+
+      const token = jwt.sign(
+        { id: req.user._id, email: req.user.email },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      const frontendUrl = process.env.CLIENT_URL || 'http://localhost:5173' || 'https://promptpal-frontend-m1a2.vercel.app';
+      console.log('🔀 Redirecting to frontend:', frontendUrl);
+      
+      res.redirect(`${frontendUrl}/auth/success?token=${token}`);
+    } catch (error) {
+      console.error('❌ JWT creation error:', error);
+      const frontendUrl = process.env.CLIENT_URL || 'http://localhost:5173' || 'https://promptpal-frontend-m1a2.vercel.app';
+      res.redirect(`${frontendUrl}/login?error=auth_failed`);
+    }
+  }
+);
+
+// Add failure handler
+router.get('/failure', (req, res) => {
+  console.error('❌ OAuth failure');
+  const frontendUrl = process.env.CLIENT_URL || 'http://localhost:5173' || 'https://promptpal-frontend-m1a2.vercel.app';
+  res.redirect(`${frontendUrl}/login?error=oauth_failed`);
+});
+
+
+
+// Add this to routes/auth.js
+router.get('/check-oauth-status', (req, res) => {
+  const status = {
+    oauth_consent_screen: 'Check these items in Google Cloud Console:',
+    checks: [
+      '1. Go to: APIs & Services → OAuth consent screen',
+      '2. User Type: Should be "External" (for public apps) or "Internal"',
+      '3. App name: Should be filled',
+      '4. User support email: Should be filled', 
+      '5. Developer contact info: Should be filled',
+      '6. Scopes: Should include ../auth/userinfo.email and ../auth/userinfo.profile',
+      '7. Test users: If in testing, your email must be in test users list',
+      '8. Publishing: If for production, must be published'
+    ],
+    test_users_note: 'If your app is in "Testing" status, you MUST add your email to "Test users"',
+    publishing_note: 'If your app is for production, you need to verify it with Google (can take days)'
+  };
+  
+  res.json(status);
+});
 export default router;
