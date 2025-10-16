@@ -6,14 +6,18 @@ import User from "../models/userModel.js";
 
 dotenv.config();
 
-// Use the exact callback URL from environment variables
+// Verify environment variables are loaded
+console.log('Google Client ID exists:', !!process.env.GOOGLE_CLIENT_ID);
+console.log('Google Client Secret exists:', !!process.env.GOOGLE_CLIENT_SECRET);
+console.log('Google Callback URL:', process.env.GOOGLE_CALLBACK_URL);
+
 passport.use(
   new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL,
-      passReqToCallback: true 
+      callbackURL: process.env.GOOGLE_CALLBACK_URL, // Use full URL from environment
+      passReqToCallback: true
     },
     async (req, accessToken, refreshToken, profile, done) => {
       try {
@@ -61,16 +65,15 @@ passport.use(
           authMethod: 'google'
         });
               
-        done(null, user);
+        return done(null, user);
       } catch (err) {
         console.error('Google Strategy Error:', err);
-        done(err, null);
+        return done(err, null);
       }
     }
   )
 );
 
-// ... rest of passport configuration
 passport.serializeUser((user, done) => {
   done(null, user.id);
 });
