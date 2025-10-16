@@ -151,7 +151,7 @@ router.patch('/profile/profession', protect, handleUpdateProfession);
 
 // Add this to your routes/auth.js file
 router.get('/debug-google', (req, res) => {
-  const expectedUri = 'https://localhost:8000/api/auth/google/callback';
+  const expectedUri = 'https://promptpal-backend-j5gl.onrender.com/api/auth/google/callback';
   const actualUri = process.env.GOOGLE_CALLBACK_URL;
   
   const debugInfo = {
