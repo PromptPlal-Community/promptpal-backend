@@ -2,7 +2,11 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
 const UserSchema = new mongoose.Schema({
-  googleId: { type: String, default: "" },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
   name: {
     type: String,
     default: "",
@@ -20,8 +24,14 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true,
+    sparse: true,
     trim: true,
-    lowercase: true
+    lowercase: true,
+    required: function() {
+      return !this.googleId;
+    },
+    unique: true,
+    sparse: true
   },
   phone:
   {
