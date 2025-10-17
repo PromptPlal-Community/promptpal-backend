@@ -57,63 +57,98 @@ router.get("/google", passport.authenticate("google", { scope: ["profile", "emai
 import path from 'path';
 import fs from 'fs';
 
-// Serve static JS files
 router.get('/auth-success.js', (req, res) => {
+  // Set correct MIME type for JavaScript
   res.setHeader('Content-Type', 'application/javascript');
-  res.send(`
+  
+  const script = `
     // Get data from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('accessToken');
+    const token = urlParams.get('token') || urlParams.get('accessToken');
     const user = urlParams.get('user');
+
+    console.log('Auth success script loaded');
+    console.log('Token exists:', !!token);
+    console.log('User exists:', !!user);
 
     if (token && user) {
       try {
         const userData = JSON.parse(decodeURIComponent(user));
+        console.log('User data parsed successfully:', userData.email);
         
-        window.opener.postMessage({
-          type: 'GOOGLE_AUTH_SUCCESS',
-          accessToken: token,
-          user: userData
-        }, window.location.origin);
+        // Send success message to opener
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({
+            type: 'GOOGLE_AUTH_SUCCESS',
+            token: token,
+            user: userData
+          }, window.location.origin);
+          console.log('Success message sent to opener');
+        } else {
+          console.error('Opener window is closed or unavailable');
+        }
         
+        // Close the popup after a short delay
         setTimeout(() => {
           window.close();
         }, 1000);
       } catch (error) {
-        window.opener.postMessage({
-          type: 'GOOGLE_AUTH_ERROR',
-          error: 'Failed to parse user data'
-        }, window.location.origin);
-        window.close();
+        console.error('Failed to parse user data:', error);
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({
+            type: 'GOOGLE_AUTH_ERROR',
+            error: 'Failed to parse user data: ' + error.message
+          }, window.location.origin);
+        }
+        setTimeout(() => {
+          window.close();
+        }, 1000);
       }
     } else {
-      window.opener.postMessage({
-        type: 'GOOGLE_AUTH_ERROR',
-        error: 'Missing token or user data'
-      }, window.location.origin);
-      window.close();
+      console.error('Missing token or user data');
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: 'GOOGLE_AUTH_ERROR',
+          error: 'Missing token or user data'
+        }, window.location.origin);
+      }
+      setTimeout(() => {
+        window.close();
+      }, 1000);
     }
-  `);
+  `;
+  
+  res.send(script);
 });
 
+// Serve auth-error.js with proper MIME type
 router.get('/auth-error.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
-  res.send(`
+  
+  const script = `
     const urlParams = new URLSearchParams(window.location.search);
     const error = urlParams.get('error');
 
-    window.opener.postMessage({
-      type: 'GOOGLE_AUTH_ERROR',
-      error: error || 'Authentication failed'
-    }, window.location.origin);
+    console.log('Auth error script loaded, error:', error);
+
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({
+        type: 'GOOGLE_AUTH_ERROR',
+        error: error || 'Authentication failed'
+      }, window.location.origin);
+      console.log('Error message sent to opener');
+    }
 
     setTimeout(() => {
       window.close();
     }, 1000);
-  `);
+  `;
+  
+  res.send(script);
 });
 
-// Google callback route
+
+// routes/auth.js - Update the Google callback route
 router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/auth/google/failure' }),
   (req, res) => {
@@ -145,7 +180,7 @@ router.get('/google/callback',
       // Encode user data for URL
       const encodedUserData = encodeURIComponent(JSON.stringify(userData));
       
-      // Send success HTML with external JS
+      // Send success HTML with external JS - pass data via URL parameters
       const successHtml = `
         <!DOCTYPE html>
         <html>
@@ -185,7 +220,7 @@ router.get('/google/callback',
             <div class="spinner"></div>
             <p>Authentication successful! Closing window...</p>
           </div>
-          <script src="/auth-success.js?accessToken=${token}&user=${encodedUserData}"></script>
+          <script src="/auth-success.js?token=${token}&user=${encodedUserData}"></script>
         </body>
         </html>
       `;
@@ -231,6 +266,44 @@ router.get('/google/callback',
     }
   }
 );
+
+// Update failure handler
+router.get('/google/failure', (req, res) => {
+  console.error('❌ Google OAuth failed');
+  
+  const errorHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Google Authentication</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          margin: 0;
+          background: #f9fafb;
+        }
+        .container {
+          text-align: center;
+          padding: 2rem;
+          color: #dc2626;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <p>Authentication failed! Closing window...</p>
+      </div>
+      <script src="/auth-error.js?error=Google authentication failed"></script>
+    </body>
+    </html>
+  `;
+  
+  res.send(errorHtml);
+});
 
 // Failure handler
 router.get('/google/failure', (req, res) => {
