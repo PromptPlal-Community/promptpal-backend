@@ -237,7 +237,11 @@ router.get(
           }, window.location.origin);
         }
 
-        setTimeout(() => window.close(), 1000);
+        if (window.opener) {
+  setTimeout(() => window.close(), 1000);
+} else {
+  console.warn("Window cannot close itself (not opened by script).");
+}
       } catch (err) {
         console.error('Auth script error:', err);
         if (window.opener && !window.opener.closed) {
@@ -246,7 +250,11 @@ router.get(
             error: err.message
           }, window.location.origin);
         }
-        setTimeout(() => window.close(), 1000);
+        if (window.opener) {
+  setTimeout(() => window.close(), 1000);
+} else {
+  console.warn("Window cannot close itself (not opened by script).");
+}
       }
     })();
   </script>
