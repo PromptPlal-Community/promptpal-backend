@@ -19,6 +19,8 @@ import { protect } from '../middleware/authMiddleware.js';
 import passport from 'passport';
 import User from '../models/userModel.js';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+
 const router = express.Router();
 
 
@@ -148,7 +150,14 @@ router.get('/auth-error.js', (req, res) => {
 });
 
 
-// routes/auth.js - Updated Google callback route
+// routes/auth.js
+
+// Helper function to generate nonce
+const generateNonce = () => {
+  return crypto.randomBytes(16).toString('base64');
+};
+
+// Google callback route with nonce
 router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/auth/google/failure' }),
   (req, res) => {
@@ -177,12 +186,15 @@ router.get('/google/callback',
         authMethod: req.user.authMethod
       };
 
-      // HTML with inline script using data attributes
+      // Generate nonce for CSP
+      const nonce = generateNonce();
+
       const html = `
 <!DOCTYPE html>
 <html>
 <head>
   <title>Google Authentication</title>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-${nonce}';">
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -218,50 +230,41 @@ router.get('/google/callback',
     <p>Authentication successful! Closing window...</p>
   </div>
   
-  <!-- Hidden divs to store data -->
-  <div id="authData" data-token="${token}" data-user='${JSON.stringify(userData).replace(/'/g, "&#39;")}' style="display: none;"></div>
-  
-  <script>
-    try {
-      console.log('Processing authentication...');
-      const authData = document.getElementById('authData');
-      const token = authData.getAttribute('data-token');
-      const userJson = authData.getAttribute('data-user').replace(/&#39;/g, "'");
-      const user = JSON.parse(userJson);
-      
-      console.log('Token:', token ? 'Present' : 'Missing');
-      console.log('User:', user ? user.email : 'Missing');
-      
-      if (token && user) {
+  <script nonce="${nonce}">
+    (function() {
+      try {
+        const token = "${token}";
+        const userData = ${JSON.stringify(userData)};
+        
+        console.log('Auth successful for:', userData.email);
+        
         if (window.opener && !window.opener.closed) {
           window.opener.postMessage({
             type: 'GOOGLE_AUTH_SUCCESS',
             token: token,
-            user: user
+            user: userData
           }, window.location.origin);
-          console.log('Success message sent to opener');
+          console.log('Success message sent');
         } else {
-          console.error('Opener window is closed or unavailable');
+          console.error('Opener window not available');
         }
         
         setTimeout(() => {
           window.close();
         }, 1000);
-      } else {
-        throw new Error('Missing token or user data');
+      } catch (error) {
+        console.error('Auth script error:', error);
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({
+            type: 'GOOGLE_AUTH_ERROR',
+            error: error.message
+          }, window.location.origin);
+        }
+        setTimeout(() => {
+          window.close();
+        }, 1000);
       }
-    } catch (error) {
-      console.error('Error in auth script:', error);
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage({
-          type: 'GOOGLE_AUTH_ERROR',
-          error: error.message
-        }, window.location.origin);
-      }
-      setTimeout(() => {
-        window.close();
-      }, 1000);
-    }
+    })();
   </script>
 </body>
 </html>
@@ -272,11 +275,14 @@ router.get('/google/callback',
     } catch (error) {
       console.error('❌ Google callback error:', error);
       
+      const nonce = generateNonce();
+      
       const errorHtml = `
 <!DOCTYPE html>
 <html>
 <head>
   <title>Google Authentication</title>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-${nonce}';">
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -299,31 +305,23 @@ router.get('/google/callback',
     <p>Authentication failed! Closing window...</p>
   </div>
   
-  <div id="errorData" data-error="${error.message.replace(/'/g, "&#39;")}" style="display: none;"></div>
-  
-  <script>
-    try {
-      const errorData = document.getElementById('errorData');
-      const error = errorData.getAttribute('data-error').replace(/&#39;/g, "'");
+  <script nonce="${nonce}">
+    (function() {
+      const errorMessage = "${error.message.replace(/"/g, '\\"')}";
       
-      console.error('Authentication error:', error);
+      console.error('Auth failed:', errorMessage);
       
       if (window.opener && !window.opener.closed) {
         window.opener.postMessage({
           type: 'GOOGLE_AUTH_ERROR',
-          error: error
+          error: errorMessage
         }, window.location.origin);
       }
       
       setTimeout(() => {
         window.close();
       }, 1000);
-    } catch (scriptError) {
-      console.error('Error in error script:', scriptError);
-      setTimeout(() => {
-        window.close();
-      }, 1000);
-    }
+    })();
   </script>
 </body>
 </html>
@@ -334,15 +332,18 @@ router.get('/google/callback',
   }
 );
 
-// Update failure handler
+// Failure handler with nonce
 router.get('/google/failure', (req, res) => {
   console.error('❌ Google OAuth failed');
+  
+  const nonce = generateNonce();
   
   const errorHtml = `
 <!DOCTYPE html>
 <html>
 <head>
   <title>Google Authentication</title>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-${nonce}';">
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -365,17 +366,19 @@ router.get('/google/failure', (req, res) => {
     <p>Authentication failed! Closing window...</p>
   </div>
   
-  <script>
-    if (window.opener && !window.opener.closed) {
-      window.opener.postMessage({
-        type: 'GOOGLE_AUTH_ERROR',
-        error: 'Google authentication failed'
-      }, window.location.origin);
-    }
-    
-    setTimeout(() => {
-      window.close();
-    }, 1000);
+  <script nonce="${nonce}">
+    (function() {
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: 'GOOGLE_AUTH_ERROR',
+          error: 'Google authentication failed'
+        }, window.location.origin);
+      }
+      
+      setTimeout(() => {
+        window.close();
+      }, 1000);
+    })();
   </script>
 </body>
 </html>
