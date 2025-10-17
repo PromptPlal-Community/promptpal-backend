@@ -5,12 +5,6 @@ import User from "../models/userModel.js";
 
 dotenv.config();
 
-console.log('🔧 Google OAuth Configuration:');
-console.log('Client ID:', process.env.GOOGLE_CLIENT_ID ? '✅ Present' : '❌ Missing');
-console.log('Client Secret:', process.env.GOOGLE_CLIENT_SECRET ? '✅ Present' : '❌ Missing');
-console.log('Callback URL:', process.env.GOOGLE_CALLBACK_URL);
-console.log('JWT Secret:', process.env.JWT_SECRET ? '✅ Present' : '❌ Missing');
-
 passport.use(
   new GoogleStrategy(
     {
