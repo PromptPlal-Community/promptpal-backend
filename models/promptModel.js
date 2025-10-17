@@ -57,11 +57,11 @@ const PromptSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  aiTool: {
+  aiTool: [{
     type: String,
     required: true,
     enum: ['ChatGPT', 'Claude', 'Bard', 'Midjourney', 'DALL-E', 'Stable Diffusion', 'Other']
-  },
+  }],
   tags: [{
     type: String,
     trim: true
