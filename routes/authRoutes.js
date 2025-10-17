@@ -148,7 +148,7 @@ router.get('/auth-error.js', (req, res) => {
 });
 
 
-// routes/auth.js - Update the Google callback route
+// routes/auth.js - Updated Google callback route
 router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/auth/google/failure' }),
   (req, res) => {
@@ -177,89 +177,156 @@ router.get('/google/callback',
         authMethod: req.user.authMethod
       };
 
-      // Encode user data for URL
-      const encodedUserData = encodeURIComponent(JSON.stringify(userData));
+      // HTML with inline script using data attributes
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Google Authentication</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background: #f9fafb;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+    .spinner {
+      border: 3px solid #f3f4f6;
+      border-top: 3px solid #8b5cf6;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="spinner"></div>
+    <p>Authentication successful! Closing window...</p>
+  </div>
+  
+  <!-- Hidden divs to store data -->
+  <div id="authData" data-token="${token}" data-user='${JSON.stringify(userData).replace(/'/g, "&#39;")}' style="display: none;"></div>
+  
+  <script>
+    try {
+      console.log('Processing authentication...');
+      const authData = document.getElementById('authData');
+      const token = authData.getAttribute('data-token');
+      const userJson = authData.getAttribute('data-user').replace(/&#39;/g, "'");
+      const user = JSON.parse(userJson);
       
-      // Send success HTML with external JS - pass data via URL parameters
-      const successHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Google Authentication</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              height: 100vh;
-              margin: 0;
-              background: #f9fafb;
-            }
-            .container {
-              text-align: center;
-              padding: 2rem;
-            }
-            .spinner {
-              border: 3px solid #f3f4f6;
-              border-top: 3px solid #8b5cf6;
-              border-radius: 50%;
-              width: 40px;
-              height: 40px;
-              animation: spin 1s linear infinite;
-              margin: 0 auto 1rem;
-            }
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="spinner"></div>
-            <p>Authentication successful! Closing window...</p>
-          </div>
-          <script src="/auth-success.js?token=${token}&user=${encodedUserData}"></script>
-        </body>
-        </html>
+      console.log('Token:', token ? 'Present' : 'Missing');
+      console.log('User:', user ? user.email : 'Missing');
+      
+      if (token && user) {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({
+            type: 'GOOGLE_AUTH_SUCCESS',
+            token: token,
+            user: user
+          }, window.location.origin);
+          console.log('Success message sent to opener');
+        } else {
+          console.error('Opener window is closed or unavailable');
+        }
+        
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+      } else {
+        throw new Error('Missing token or user data');
+      }
+    } catch (error) {
+      console.error('Error in auth script:', error);
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: 'GOOGLE_AUTH_ERROR',
+          error: error.message
+        }, window.location.origin);
+      }
+      setTimeout(() => {
+        window.close();
+      }, 1000);
+    }
+  </script>
+</body>
+</html>
       `;
       
-      res.send(successHtml);
+      res.send(html);
       
     } catch (error) {
       console.error('❌ Google callback error:', error);
       
-      // Send error HTML with external JS
       const errorHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Google Authentication</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              height: 100vh;
-              margin: 0;
-              background: #f9fafb;
-            }
-            .container {
-              text-align: center;
-              padding: 2rem;
-              color: #dc2626;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <p>Authentication failed! Closing window...</p>
-          </div>
-          <script src="/auth-error.js?error=${encodeURIComponent(error.message)}"></script>
-        </body>
-        </html>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Google Authentication</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background: #f9fafb;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+      color: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <p>Authentication failed! Closing window...</p>
+  </div>
+  
+  <div id="errorData" data-error="${error.message.replace(/'/g, "&#39;")}" style="display: none;"></div>
+  
+  <script>
+    try {
+      const errorData = document.getElementById('errorData');
+      const error = errorData.getAttribute('data-error').replace(/&#39;/g, "'");
+      
+      console.error('Authentication error:', error);
+      
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage({
+          type: 'GOOGLE_AUTH_ERROR',
+          error: error
+        }, window.location.origin);
+      }
+      
+      setTimeout(() => {
+        window.close();
+      }, 1000);
+    } catch (scriptError) {
+      console.error('Error in error script:', scriptError);
+      setTimeout(() => {
+        window.close();
+      }, 1000);
+    }
+  </script>
+</body>
+</html>
       `;
       
       res.send(errorHtml);
@@ -272,72 +339,46 @@ router.get('/google/failure', (req, res) => {
   console.error('❌ Google OAuth failed');
   
   const errorHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Google Authentication</title>
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 100vh;
-          margin: 0;
-          background: #f9fafb;
-        }
-        .container {
-          text-align: center;
-          padding: 2rem;
-          color: #dc2626;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <p>Authentication failed! Closing window...</p>
-      </div>
-      <script src="/auth-error.js?error=Google authentication failed"></script>
-    </body>
-    </html>
-  `;
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Google Authentication</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background: #f9fafb;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+      color: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <p>Authentication failed! Closing window...</p>
+  </div>
   
-  res.send(errorHtml);
-});
-
-// Failure handler
-router.get('/google/failure', (req, res) => {
-  console.error('❌ Google OAuth failed');
-  
-  const errorHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Google Authentication</title>
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 100vh;
-          margin: 0;
-          background: #f9fafb;
-        }
-        .container {
-          text-align: center;
-          padding: 2rem;
-          color: #dc2626;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <p>Authentication failed! Closing window...</p>
-      </div>
-      <script src="/auth-error.js?error=Google authentication failed"></script>
-    </body>
-    </html>
+  <script>
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({
+        type: 'GOOGLE_AUTH_ERROR',
+        error: 'Google authentication failed'
+      }, window.location.origin);
+    }
+    
+    setTimeout(() => {
+      window.close();
+    }, 1000);
+  </script>
+</body>
+</html>
   `;
   
   res.send(errorHtml);
