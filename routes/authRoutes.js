@@ -54,28 +54,188 @@ router.get("/google", passport.authenticate("google", { scope: ["profile", "emai
  *       302:
  *         description: Redirects to Google for linking
  */
-router.get("/google/callback", 
-  passport.authenticate("google", { failureRedirect: "/login", session: false }),
+router.get('/google/callback',
+  passport.authenticate('google', { session: false, failureRedirect: '/auth/google/failure' }),
   (req, res) => {
-    const token = jwt.sign(
-      { id: req.user._id, email: req.user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    try {
+      console.log('✅ Google authentication successful for:', req.user.email);
+      
+      if (!process.env.JWT_SECRET) {
+        throw new Error('JWT_SECRET not configured');
+      }
 
-    const frontendUrl = process.env.CLIENT_URL || 'http://localhost:5173' || 'https://promptpal-frontend-m1a2.vercel.app';
-    const userData = encodeURIComponent(JSON.stringify({
-      _id: req.user._id,
-      email: req.user.email,
-      name: req.user.name,
-      username: req.user.username,
-      avatar: req.user.avatar,
-      googleId: req.user.googleId
-    }));
-    
-    res.redirect(`${frontendUrl}/auth/google/callback?token=${token}&user=${userData}`);
+      // Create JWT token
+      const token = jwt.sign(
+        { id: req.user._id, email: req.user.email },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      const userData = {
+        _id: req.user._id,
+        email: req.user.email,
+        name: req.user.name,
+        username: req.user.username,
+        avatar: req.user.avatar,
+        googleId: req.user.googleId,
+        isEmailVerified: req.user.isEmailVerified,
+        authMethod: req.user.authMethod
+      };
+
+      // Send HTML that posts message to opener and closes
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Google Authentication</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              margin: 0;
+              background: #f9fafb;
+            }
+            .container {
+              text-align: center;
+              padding: 2rem;
+            }
+            .spinner {
+              border: 3px solid #f3f4f6;
+              border-top: 3px solid #8b5cf6;
+              border-radius: 50%;
+              width: 40px;
+              height: 40px;
+              animation: spin 1s linear infinite;
+              margin: 0 auto 1rem;
+            }
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="spinner"></div>
+            <p>Authentication successful! Closing window...</p>
+          </div>
+          <script>
+            // Send success message to opener
+            window.opener.postMessage({
+              type: 'GOOGLE_AUTH_SUCCESS',
+              token: '${token}',
+              user: ${JSON.stringify(userData)}
+            }, '${process.env.CLIENT_URL || window.location.origin}');
+            
+            // Close the popup after a short delay
+            setTimeout(() => {
+              window.close();
+            }, 1000);
+          </script>
+        </body>
+        </html>
+      `;
+      
+      res.send(html);
+      
+    } catch (error) {
+      console.error('❌ Google callback error:', error);
+      
+      // Send error HTML
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Google Authentication</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              margin: 0;
+              background: #f9fafb;
+            }
+            .container {
+              text-align: center;
+              padding: 2rem;
+              color: #dc2626;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <p>Authentication failed! Closing window...</p>
+          </div>
+          <script>
+            window.opener.postMessage({
+              type: 'GOOGLE_AUTH_ERROR',
+              error: '${error.message.replace(/'/g, "\\'")}'
+            }, '${process.env.CLIENT_URL || window.location.origin}');
+            
+            setTimeout(() => {
+              window.close();
+            }, 1000);
+          </script>
+        </body>
+        </html>
+      `;
+      
+      res.send(html);
+    }
   }
 );
+
+// Failure handler for popup flow
+router.get('/google/failure', (req, res) => {
+  console.error('❌ Google OAuth failed');
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Google Authentication</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          margin: 0;
+          background: #f9fafb;
+        }
+        .container {
+          text-align: center;
+          padding: 2rem;
+          color: #dc2626;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <p>Authentication failed! Closing window...</p>
+      </div>
+      <script>
+        window.opener.postMessage({
+          type: 'GOOGLE_AUTH_ERROR',
+          error: 'Google authentication failed'
+        }, '${process.env.CLIENT_URL || window.location.origin}');
+        
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+      </script>
+    </body>
+    </html>
+  `;
+  
+  res.send(html);
+});
 
 
 // Callback after Google approval
@@ -147,139 +307,4 @@ router.patch('/profile', protect, handleUpdateUserProfile);
 // update user profession
 router.patch('/profile/profession', protect, handleUpdateProfession);
 
-
-
-// Add this to your routes/auth.js file
-router.get('/debug-google', (req, res) => {
-  const expectedUri = 'https://promptpal-backend-j5gl.onrender.com/api/auth/google/callback';
-  const actualUri = process.env.GOOGLE_CALLBACK_URL;
-  
-  const debugInfo = {
-    problem: "Google OAuth 'Bad Request' Error",
-    description: "This is almost always a redirect URI mismatch",
-    solution: "Follow the steps below to fix it",
-    
-    current_config: {
-      expected_redirect_uri: expectedUri,
-      actual_redirect_uri: actualUri,
-      uris_match: expectedUri === actualUri,
-      has_client_id: !!process.env.GOOGLE_CLIENT_ID,
-      has_client_secret: !!process.env.GOOGLE_CLIENT_SECRET
-    },
-    
-    fix_instructions: [
-      "1. Go to: https://console.cloud.google.com/",
-      "2. Select your project",
-      "3. Navigate to: APIs & Services → Credentials", 
-      "4. Click on your OAuth 2.0 Client ID",
-      `5. In 'Authorized redirect URIs' add: ${expectedUri}`,
-      "6. Remove any other URIs temporarily",
-      "7. Click SAVE",
-      "8. Wait 2 minutes and test again"
-    ],
-    
-    common_mistakes: [
-      "Using http:// instead of https://",
-      "Missing /api in the path", 
-      "promptpal-backend-j5gl.onrender.com vs your-custom-domain.com",
-      "Extra spaces in the URI",
-      "Missing /callback at the end"
-    ]
-  };
-  
-  console.log('GOOGLE OAUTH DEBUG INFO:', debugInfo);
-  res.json(debugInfo);
-});
-
-
-// routes/auth.js - Add more detailed logging
-router.get('/google', (req, res, next) => {
-  console.log('🚀 Starting Google OAuth flow');
-  console.log('📋 Request details:', {
-    originalUrl: req.originalUrl,
-    query: req.query,
-    headers: req.headers
-  });
-  next();
-}, passport.authenticate('google', { 
-  scope: ['profile', 'email'],
-  accessType: 'offline',
-  prompt: 'consent' // Force consent screen
-}));
-
-router.get('/google/callback', (req, res, next) => {
-  console.log('🔄 Google callback received');
-  console.log('📋 Callback details:', {
-    query: req.query,
-    hasCode: !!req.query.code,
-    hasError: !!req.query.error,
-    fullUrl: req.protocol + '://' + req.get('host') + req.originalUrl
-  });
-  
-  if (req.query.error) {
-    console.error('❌ Google returned error:', req.query.error);
-    console.error('❌ Error description:', req.query.error_description);
-  }
-  
-  next();
-}, 
-  passport.authenticate('google', { 
-    session: false,
-    failureRedirect: '/auth/failure' 
-  }),
-  (req, res) => {
-    try {
-      console.log('✅ Authentication successful, creating JWT');
-      
-      if (!process.env.JWT_SECRET) {
-        throw new Error('JWT_SECRET missing');
-      }
-
-      const token = jwt.sign(
-        { id: req.user._id, email: req.user.email },
-        process.env.JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-
-      const frontendUrl = process.env.CLIENT_URL || 'http://localhost:5173' || 'https://promptpal-frontend-m1a2.vercel.app';
-      console.log('🔀 Redirecting to frontend:', frontendUrl);
-      
-      res.redirect(`${frontendUrl}/auth/success?token=${token}`);
-    } catch (error) {
-      console.error('❌ JWT creation error:', error);
-      const frontendUrl = process.env.CLIENT_URL || 'http://localhost:5173' || 'https://promptpal-frontend-m1a2.vercel.app';
-      res.redirect(`${frontendUrl}/login?error=auth_failed`);
-    }
-  }
-);
-
-// Add failure handler
-router.get('/failure', (req, res) => {
-  console.error('❌ OAuth failure');
-  const frontendUrl = process.env.CLIENT_URL || 'http://localhost:5173' || 'https://promptpal-frontend-m1a2.vercel.app';
-  res.redirect(`${frontendUrl}/login?error=oauth_failed`);
-});
-
-
-
-// Add this to routes/auth.js
-router.get('/check-oauth-status', (req, res) => {
-  const status = {
-    oauth_consent_screen: 'Check these items in Google Cloud Console:',
-    checks: [
-      '1. Go to: APIs & Services → OAuth consent screen',
-      '2. User Type: Should be "External" (for public apps) or "Internal"',
-      '3. App name: Should be filled',
-      '4. User support email: Should be filled', 
-      '5. Developer contact info: Should be filled',
-      '6. Scopes: Should include ../auth/userinfo.email and ../auth/userinfo.profile',
-      '7. Test users: If in testing, your email must be in test users list',
-      '8. Publishing: If for production, must be published'
-    ],
-    test_users_note: 'If your app is in "Testing" status, you MUST add your email to "Test users"',
-    publishing_note: 'If your app is for production, you need to verify it with Google (can take days)'
-  };
-  
-  res.json(status);
-});
 export default router;
