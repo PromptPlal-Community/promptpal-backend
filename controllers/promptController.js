@@ -128,7 +128,7 @@ try {
       description,
       promptText,
       resultText,
-      aiTool: Array.isArray(aiTool) ? aiTool : aiTool.split(',').map(aiTool => aiTool.trim()),
+      aiTool,
       tags: Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim()),
       author: req.user._id,
       isPublic: isPublic !== 'false',
@@ -566,14 +566,13 @@ export const updatePrompt = async (req, res) => {
       prompt.requiresLevel = requiresLevel || prompt.requiresLevel;
       prompt.difficulty = difficulty || prompt.difficulty;
       prompt.category = category || prompt.category;
+      prompt.aiTool = aiTool || prompt.aiTool;
 
-      // Update tags and aiTool if provided
+      // Update tags if provided
       if (tags !== undefined) {
         prompt.tags = Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim());
       }
-      if (aiTool !== undefined) {
-        prompt.aiTool = Array.isArray(aiTool) ? aiTool : aiTool.split(',').map(aiTool => aiTool.trim());
-      }
+
 
       // Handle image deletions first
       if (imagesToDelete) {

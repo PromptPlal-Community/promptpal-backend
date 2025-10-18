@@ -57,9 +57,17 @@ const PromptSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  aiTool: [{
-    type: String,
-  }],
+  aiTool: {
+    type: [String],
+    enum: ["ChatGPT", "Claude", "Bard", "Midjourney", "DALL-E", "Stable Diffusion"],
+    required: true,
+    validate: {
+      validator: function(tools) {
+        return tools.length > 0;
+      },
+      message: "At least one AI tool must be selected"
+    }
+  },
   tags: [{
     type: String,
     trim: true
