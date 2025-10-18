@@ -56,7 +56,7 @@ import CloudinaryService from '../utils/CloudinaryService.js';
  *         description: Bad request
  */
 export const createPrompt = async (req, res) => {
-try {
+  try {
     const { 
       title, 
       description, 
@@ -71,6 +71,42 @@ try {
       category,
       captions 
     } = req.body;
+
+    // Define allowed AI tools
+    const ALLOWED_AI_TOOLS = ["ChatGPT", "Claude", "Bard", "Midjourney", "DALL-E", "Stable Diffusion"];
+
+    // Parse and validate AI tools
+    let parsedAiTools = [];
+    if (aiTool) {
+      try {
+        // If it's a JSON string, parse it
+        if (typeof aiTool === 'string' && aiTool.startsWith('[')) {
+          parsedAiTools = JSON.parse(aiTool);
+        } else if (Array.isArray(aiTool)) {
+          parsedAiTools = aiTool;
+        } else {
+          // If it's a comma-separated string
+          parsedAiTools = aiTool.split(',').map(tool => tool.trim());
+        }
+      } catch (error) {
+        return res.status(400).json({ error: "Invalid AI tools format" });
+      }
+
+      // Validate each AI tool
+      const invalidTools = parsedAiTools.filter(tool => !ALLOWED_AI_TOOLS.includes(tool));
+      if (invalidTools.length > 0) {
+        return res.status(400).json({ 
+          error: `Invalid AI tools: ${invalidTools.join(', ')}. Allowed tools: ${ALLOWED_AI_TOOLS.join(', ')}` 
+        });
+      }
+
+      // Check if at least one tool is selected
+      if (parsedAiTools.length === 0) {
+        return res.status(400).json({ error: "At least one AI tool must be selected" });
+      }
+    } else {
+      return res.status(400).json({ error: "AI tools are required" });
+    }
 
     // Check user's storage limit before processing images
     const user = await User.findById(req.user._id);
@@ -128,7 +164,7 @@ try {
       description,
       promptText,
       resultText,
-      aiTool: Array.isArray(aiTool) ? aiTool : aiTool.split(',').map(aiTool => aiTool.trim()),
+      aiTool: parsedAiTools, // Use the validated and parsed array
       tags: Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim()),
       author: req.user._id,
       isPublic: isPublic !== 'false',
@@ -138,17 +174,16 @@ try {
       difficulty: difficulty || 'Beginner',
       category: category || 'Other',
       images: processedImages,
-        metadata: {
+      metadata: {
         wordCount: promptText.split(/\s+/).length,
         characterCount: promptText.length,
         hasImages: processedImages.length > 0,
         hasCode: promptText.includes('```') || (resultText && resultText.includes('```')),
         imageCount: processedImages.length,
-        },
+      },
     });
 
     await prompt.save();
-
 
     if (processedImages.length > 0) {
       await user.trackImageUpload(totalImageSize);
@@ -160,6 +195,7 @@ try {
       prompt: await prompt.populate('author', 'username profile avatar level profession')
     });
   } catch (error) {
+    console.error('Create prompt error:', error);
     res.status(400).json({ error: error.message });
   }
 };
@@ -609,8 +645,15 @@ export const updatePrompt = async (req, res) => {
         prompt.tags = Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim());
       }
 
+      // Update AI tools if provided
       if (aiTool !== undefined) {
-        prompt.aiTool = Array.isArray(aiTool) ? aiTool : aiTool.split(',').map(tag => tag.trim());
+        let parsedAiTools = [];
+        if (Array.isArray(aiTool)) {
+          parsedAiTools = aiTool;
+        } else {
+          parsedAiTools = aiTool.split(',').map(tool => tool.trim());
+        }
+        prompt.aiTool = parsedAiTools;
       }
 
       // Handle image deletions first

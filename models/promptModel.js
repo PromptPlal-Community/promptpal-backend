@@ -59,6 +59,8 @@ const PromptSchema = new mongoose.Schema({
   }],
   aiTool: [{
     type: String,
+    enum: ["ChatGPT", "Claude", "Bard", "Midjourney", "DALL-E", "Stable Diffusion"],
+    required: true
   }],
   tags: [{
     type: String,
