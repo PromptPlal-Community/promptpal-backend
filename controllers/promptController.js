@@ -184,8 +184,8 @@ export const createPrompt = async (req, res) => {
       description,
       promptText,
       resultText,
-      aiTool: parsedAiTools, // Use the parsed and validated array
-      tags: parsedTags, // Use the parsed and validated array
+      aiTool: parsedAiTools,
+      tags: parsedTags,
       author: req.user._id,
       isPublic: isPublic !== 'false',
       isDraft: isDraft === 'true',
@@ -198,7 +198,7 @@ export const createPrompt = async (req, res) => {
         wordCount: promptText.split(/\s+/).length,
         characterCount: promptText.length,
         hasImages: processedImages.length > 0,
-        hasCode: promptText.includes('```') || (resultText && resultText.includes('```')),
+        hasCode: promptText.includes('```') || (resultText ? resultText.includes('```') : false),
         imageCount: processedImages.length,
       },
     });
