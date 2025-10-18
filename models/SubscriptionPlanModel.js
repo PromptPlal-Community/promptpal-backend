@@ -38,7 +38,6 @@ limits: {
     canCreatePrivate: { type: Boolean, default: false },
     canExport: { type: Boolean, default: false },
     maxPromptLength: { type: Number, default: 1000 },
-    aiTools: [{ type: String }],
     imageFormats: {
       type: [String],
       default: ['jpg', 'jpeg', 'png', 'gif', 'webp']

@@ -59,8 +59,6 @@ const PromptSchema = new mongoose.Schema({
   }],
   aiTool: [{
     type: String,
-    required: true,
-    enum: ['ChatGPT', 'Claude', 'Bard', 'Midjourney', 'DALL-E', 'Stable Diffusion', 'Other']
   }],
   tags: [{
     type: String,
@@ -95,8 +93,8 @@ const PromptSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['Art', 'Writing', 'Code', 'Marketing', 'Design', 'Education', 'Other'],
-    default: 'Other'
+    enum: ['Art', 'Writing', 'Code', 'Marketing', 'Design', 'Education'],
+    default: ''
   },
   estimatedTokens: {
     type: Number,

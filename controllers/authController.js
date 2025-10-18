@@ -143,12 +143,10 @@ export const registerUser = async (req, res) => {
           canCreatePrivate: true,
           canExport: false,
           maxPromptLength: 1000,
-          aiTools: ['ChatGPT', 'Claude', 'Bard', 'Midjourney', 'DALL-E', 'Stable Diffusion', 'Other']
         },
         features: [
           { name: 'Create Public Prompts', included: true },
           { name: 'Join Communities', included: true },
-          { name: 'Basic AI Tools', included: true },
           { name: 'Image Uploads', included: true },
           { name: 'Private Prompts', included: true },
           { name: 'Export Features', included: false }

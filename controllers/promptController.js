@@ -128,7 +128,7 @@ try {
       description,
       promptText,
       resultText,
-      aiTool,
+      aiTool: Array.isArray(aiTool) ? aiTool : aiTool.split(',').map(aiTool => aiTool.trim()),
       tags: Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim()),
       author: req.user._id,
       isPublic: isPublic !== 'false',
@@ -552,8 +552,8 @@ export const updatePrompt = async (req, res) => {
         requiresLevel,
         difficulty,
         category,
-        imagesToDelete, // Array of image indexes or public_ids to delete
-        captions // Array or object of captions for new images
+        imagesToDelete,
+        captions
       } = req.body;
 
       // Update basic prompt details
@@ -561,16 +561,18 @@ export const updatePrompt = async (req, res) => {
       prompt.description = description || prompt.description;
       prompt.promptText = promptText || prompt.promptText;
       prompt.resultText = resultText !== undefined ? resultText : prompt.resultText;
-      prompt.aiTool = aiTool || prompt.aiTool;
       prompt.isPublic = isPublic !== undefined ? isPublic === 'true' : prompt.isPublic;
       prompt.isDraft = isDraft !== undefined ? isDraft === 'true' : prompt.isDraft;
       prompt.requiresLevel = requiresLevel || prompt.requiresLevel;
       prompt.difficulty = difficulty || prompt.difficulty;
       prompt.category = category || prompt.category;
 
-      // Update tags if provided
+      // Update tags and aiTool if provided
       if (tags !== undefined) {
         prompt.tags = Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim());
+      }
+      if (aiTool !== undefined) {
+        prompt.aiTool = Array.isArray(aiTool) ? aiTool : aiTool.split(',').map(aiTool => aiTool.trim());
       }
 
       // Handle image deletions first
@@ -708,7 +710,7 @@ export const updatePrompt = async (req, res) => {
       res.status(400).json({ 
         error: error.message || 'Failed to update prompt' 
       });
-    };
+};
 
 // Delete prompt
 /**

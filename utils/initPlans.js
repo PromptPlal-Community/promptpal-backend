@@ -25,19 +25,17 @@ const initPlans = async () => {
         limits: {
           promptsLimit: 20,
           apiCallsLimit: 100,
-          storageLimit: 100, // 100MB
-          maxImageSize: 5, // 5MB
+          storageLimit: 100,
+          maxImageSize: 5,
           maxImagesPerPrompt: 5,
           maxCommunities: 2,
           canCreatePrivate: true,
           canExport: false,
           maxPromptLength: 1000,
-          aiTools: ['ChatGPT', 'Claude', 'Bard', 'Midjourney', 'DALL-E', 'Stable Diffusion', 'Other']
         },
         features: [
           { name: 'Create Public Prompts', included: true },
           { name: 'Join Communities', included: true },
-          { name: 'Basic AI Tools', included: true },
           { name: 'Image Uploads', included: true },
           { name: 'Private Prompts', included: true },
           { name: 'Export Features', included: false }
@@ -58,19 +56,17 @@ const initPlans = async () => {
         limits: {
           promptsLimit: 100,
           apiCallsLimit: 1000,
-          storageLimit: 1024, // 1GB
+          storageLimit: 1024,
           maxImageSize: 10,
           maxImagesPerPrompt: 10,
           maxCommunities: 5,
           canCreatePrivate: true,
           canExport: true,
           maxPromptLength: 5000,
-          aiTools: ['ChatGPT', 'Claude', 'Bard', 'Midjourney', 'DALL-E', 'Stable Diffusion', 'Other']
         },
         features: [
           { name: 'Create Public Prompts', included: true },
           { name: 'Join Communities', included: true },
-          { name: 'Advanced AI Tools', included: true },
           { name: 'Image Uploads', included: true },
           { name: 'Private Prompts', included: true },
           { name: 'Export Features', included: true }
@@ -89,21 +85,19 @@ const initPlans = async () => {
         tier: 3,
         levelRequired: 'Pro',
         limits: {
-          promptsLimit: -1, // Unlimited
+          promptsLimit: -1,
           apiCallsLimit: 10000,
-          storageLimit: 5120, // 5GB
+          storageLimit: 5120,
           maxImageSize: 20,
           maxImagesPerPrompt: 20,
-          maxCommunities: -1, // Unlimited
+          maxCommunities: -1,
           canCreatePrivate: true,
           canExport: true,
           maxPromptLength: 10000,
-          aiTools: ['ChatGPT', 'Claude', 'Bard', 'Midjourney', 'DALL-E', 'Stable Diffusion', 'Other']
         },
         features: [
           { name: 'Create Public Prompts', included: true },
           { name: 'Join Communities', included: true },
-          { name: 'All AI Tools', included: true },
           { name: 'Image Uploads', included: true },
           { name: 'Private Prompts', included: true },
           { name: 'Export Features', included: true }
@@ -117,19 +111,14 @@ const initPlans = async () => {
       
       if (existingPlan) {
         await SubscriptionPlan.findByIdAndUpdate(existingPlan._id, planData);
-        console.log(`✅ ${planData.displayName} updated`);
       } else {
         await SubscriptionPlan.create(planData);
-        console.log(`✅ ${planData.displayName} created`);
       }
     }
 
-    console.log('🎉 All plans initialized successfully!');
     
     // Verify the plans were created
-    const allPlans = await SubscriptionPlan.find();
-    console.log('Available plans:', allPlans.map(p => ({ name: p.name, displayName: p.displayName, isFree: p.isFree })));
-    
+    const allPlans = await SubscriptionPlan.find();    
     process.exit(0);
   } catch (error) {
     console.error('Error initializing plans:', error);
