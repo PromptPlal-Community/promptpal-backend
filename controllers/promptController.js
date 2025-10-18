@@ -56,7 +56,7 @@ import CloudinaryService from '../utils/CloudinaryService.js';
  *         description: Bad request
  */
 export const createPrompt = async (req, res) => {
-try {
+  try {
     const { 
       title, 
       description, 
@@ -71,6 +71,55 @@ try {
       category,
       captions 
     } = req.body;
+
+    // Validate required fields
+    if (!title || !promptText) {
+      return res.status(400).json({ error: "Title and prompt text are required" });
+    }
+
+    // Parse and validate AI tools
+    let parsedAiTools = [];
+    if (aiTool) {
+      try {
+        if (Array.isArray(aiTool)) {
+          parsedAiTools = aiTool;
+        } else if (typeof aiTool === 'string') {
+          // Handle JSON string or comma-separated string
+          if (aiTool.startsWith('[')) {
+            parsedAiTools = JSON.parse(aiTool);
+          } else {
+            parsedAiTools = aiTool.split(',').map(tool => tool.trim()).filter(tool => tool !== '');
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing aiTool:', error);
+        return res.status(400).json({ error: "Invalid AI tools format" });
+      }
+    }
+
+    // Validate at least one AI tool is selected
+    if (parsedAiTools.length === 0) {
+      return res.status(400).json({ error: "At least one AI tool must be selected" });
+    }
+
+    // Parse and validate tags
+    let parsedTags = [];
+    if (tags) {
+      try {
+        if (Array.isArray(tags)) {
+          parsedTags = tags;
+        } else if (typeof tags === 'string') {
+          if (tags.startsWith('[')) {
+            parsedTags = JSON.parse(tags);
+          } else {
+            parsedTags = tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing tags:', error);
+        parsedTags = []; // Default to empty array if parsing fails
+      }
+    }
 
     // Check user's storage limit before processing images
     const user = await User.findById(req.user._id);
@@ -103,9 +152,16 @@ try {
 
       // Process uploaded images
       processedImages = uploadResults.map((result, index) => {
-        const caption = captions ? 
-          (Array.isArray(captions) ? captions[index] : JSON.parse(captions)[index]) : 
-          '';
+        let caption = '';
+        if (captions) {
+          try {
+            const captionArray = Array.isArray(captions) ? captions : JSON.parse(captions);
+            caption = captionArray[index] || '';
+          } catch (error) {
+            console.error('Error parsing captions:', error);
+            caption = '';
+          }
+        }
 
         return {
           public_id: result.public_id,
@@ -128,8 +184,8 @@ try {
       description,
       promptText,
       resultText,
-      aiTool: Array.isArray(aiTool) ? aiTool : aiTool.split(',').map(aiTool => aiTool.trim()),
-      tags: Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim()),
+      aiTool: parsedAiTools, // Use the parsed and validated array
+      tags: parsedTags, // Use the parsed and validated array
       author: req.user._id,
       isPublic: isPublic !== 'false',
       isDraft: isDraft === 'true',
@@ -138,17 +194,16 @@ try {
       difficulty: difficulty || 'Beginner',
       category: category || 'Other',
       images: processedImages,
-        metadata: {
+      metadata: {
         wordCount: promptText.split(/\s+/).length,
         characterCount: promptText.length,
         hasImages: processedImages.length > 0,
         hasCode: promptText.includes('```') || (resultText && resultText.includes('```')),
         imageCount: processedImages.length,
-        },
+      },
     });
 
     await prompt.save();
-
 
     if (processedImages.length > 0) {
       await user.trackImageUpload(totalImageSize);
@@ -160,6 +215,7 @@ try {
       prompt: await prompt.populate('author', 'username profile avatar level profession')
     });
   } catch (error) {
+    console.error('Create prompt error:', error);
     res.status(400).json({ error: error.message });
   }
 };
