@@ -18,7 +18,6 @@ import {
 import { protect } from '../middleware/authMiddleware.js';
 import passport from '../config/passport.js';
 import User from '../models/userModel.js';
-import passport from '../config/passport.js';
 import { generateState } from '../config/passport.js';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';

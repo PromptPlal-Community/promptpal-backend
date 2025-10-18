@@ -273,6 +273,44 @@ export const getUserPrompts = async (req, res) => {
   }
 };
 
+// user get prompt save in drafts by ID
+/**
+ * @swagger
+ * /prompts/{id}/drafts:
+ *   get:
+ *     summary: Get a user's saved draft prompt by ID
+ *     description: Retrieve a specific draft prompt created by the authenticated user
+ *     tags: [Prompts]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the draft prompt
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Draft prompt retrieved successfully
+ *       404:
+ *         description: Draft prompt not found
+ *       403:
+ *         description: Not authorized to access this draft prompt
+ */
+export const getUserDraftPromptById = async (req, res) => {
+  try {
+    const prompt = await Prompt.findOne({ _id: req.params.id, author: req.user._id, isDraft: true });
+    if (!prompt) {
+      return res.status(404).json({ error: 'Draft prompt not found' });
+    }
+    res.json({
+      success: true,
+      prompt
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
 
 // Get prompts with images
 /**
