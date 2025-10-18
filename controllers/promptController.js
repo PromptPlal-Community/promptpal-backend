@@ -128,7 +128,7 @@ try {
       description,
       promptText,
       resultText,
-      aiTool: Array.isArray(aiTool) ? aiTool : aiTool.split(',').map(tag => tag.trim()),
+      aiTool: Array.isArray(aiTool) ? aiTool : aiTool.split(',').map(aiTool => aiTool.trim()),
       tags: Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim()),
       author: req.user._id,
       isPublic: isPublic !== 'false',
