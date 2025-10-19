@@ -62,7 +62,7 @@ class CloudinaryService {
   // Delete image from Cloudinary
   async deleteImage(publicId) {
     try {
-      const result = await cloudinary.uploader.destroy(publicId); // Remove .v2
+      const result = await cloudinary.uploader.destroy(publicId);
       return result;
     } catch (error) {
       throw new Error(`Cloudinary deletion failed: ${error.message}`);

@@ -830,19 +830,63 @@ export const updatePrompt = async (req, res) => {
  *         description: Internal server error
  */
 export const deletePrompt = async (req, res) => {
-      try {
+  try {
+    console.log('Delete request received for prompt ID:', req.params.id);
+    console.log('User ID making request:', req.user._id);
+
     const prompt = await Prompt.findById(req.params.id);
     if (!prompt) {
-      return res.status(404).json({ error: 'Prompt not found' });
+      console.log('Prompt not found with ID:', req.params.id);
+      return res.status(404).json({ success: false, message: 'Prompt not found' });
     }
 
-    await prompt.remove();
+    console.log('Found prompt author:', prompt.author.toString());
+    console.log('Request user ID:', req.user._id.toString());
+
+    // Check if user owns the prompt
+    if (prompt.author.toString() !== req.user._id.toString()) {
+      console.log('Authorization failed: User does not own this prompt');
+      return res.status(403).json({ 
+        success: false,
+        message: 'Not authorized to delete this prompt'
+      });
+    }
+
+    console.log('Authorization successful, proceeding with deletion');
+
+    // Delete associated images from Cloudinary (with error handling)
+    if (prompt.images && prompt.images.length > 0) {
+      console.log('Deleting', prompt.images.length, 'images from Cloudinary');
+      for (const image of prompt.images) {
+        try {
+          if (image.public_id) {
+            await CloudinaryService.deleteImage(image.public_id);
+            console.log('Successfully deleted image:', image.public_id);
+          }
+        } catch (cloudinaryError) {
+          console.error('Error deleting image from Cloudinary:', cloudinaryError);
+          // Continue with prompt deletion even if image deletion fails
+        }
+      }
+    } else {
+      console.log('No images to delete from Cloudinary');
+    }
+
+    // Delete the prompt
+    await Prompt.findByIdAndDelete(req.params.id);
+    console.log('Prompt deleted successfully from database');
+    
     res.json({
       success: true,
       message: 'Prompt deleted successfully'
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Delete prompt error:', error);
+    console.error('Error stack:', error.stack);
+    res.status(400).json({ 
+      success: false,
+      error: error.message 
+    });
   }
 };
 
