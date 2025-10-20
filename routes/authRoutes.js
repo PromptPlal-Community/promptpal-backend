@@ -5,14 +5,14 @@ import {
   logoutUser,
   verifyEmailOTP as verifyEmail,
   resendOTP as resendOtp,
-  sendResetOTP as forgotPassword,
-  resetPasswordWithOTP as resetPassword,
   refreshAccessToken,
   handleGetAllUsers,
   handleGetUserProfile,
   handleUpdateUserProfile,
   handleUpdateProfession,
   linkGooglePassword,
+  handleRequestPasswordReset,
+  handleResetPassword,
 
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
@@ -390,8 +390,8 @@ router.post('/resend-otp', resendOtp);
 router.post('/login', loginUser);
 router.post('/logout', logoutUser);
 router.post('/refresh-token', refreshAccessToken);
-router.post('/forgot-password', forgotPassword);
-router.post('/reset-password', resetPassword);
+router.post('/forgot-password', handleRequestPasswordReset);
+router.post('/reset-password', handleResetPassword);
 router.get('/users', protect, handleGetAllUsers);
 
 // get user profile
