@@ -25,7 +25,7 @@ app.set('trust proxy', 1);
 
 const allowedOrigins = [
   process.env.CLIENT_URL,
-  'https://promptpal-frontend-m1a2.vercel.app',
+  'https://promptpal-frontend.vercel.app',
   'http://localhost:5173',
 ];
 // === Middleware ===
