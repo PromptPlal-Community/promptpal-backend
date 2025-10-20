@@ -81,7 +81,7 @@ export const sendOTPEmail = async (to, otp) => {
 
 // Forgot Password Email
 export const sendForgotPasswordEmail = async (to, resetToken) => {
-  const resetLink = `http://localhost:5173/reset-password?resetToken=${resetToken}`;
+  const resetLink = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
   const subject = 'Reset Your Password - Prompt Palace';
   
   const html = emailWrapper(`
