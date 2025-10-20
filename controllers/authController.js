@@ -830,10 +830,10 @@ export const handleRequestPasswordReset = async (req, res) => {
  *         description: Internal server error
  */
 export const handleResetPassword = async (req, res) => {
-    const { token, newPassword, confirmNewPassword } = req.body;
+    const { resetToken, newPassword, confirmNewPassword } = req.body;
 
-    if (!token || !newPassword || !confirmNewPassword) {
-        return res.status(400).json({ success: false, message: "Token, new password, and confirm new password are required." });
+    if (!resetToken || !newPassword || !confirmNewPassword) {
+        return res.status(400).json({ success: false, message: "Reset token, new password, and confirm new password are required." });
     }
 
     if (newPassword !== confirmNewPassword) {
@@ -841,7 +841,7 @@ export const handleResetPassword = async (req, res) => {
     }
 
     try {
-        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+        const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
 
         const user = await User.findOne({ 
             resetPasswordWithOTP: hashedToken,
