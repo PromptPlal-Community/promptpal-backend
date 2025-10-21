@@ -748,8 +748,6 @@ export const getPromptById = async (req, res) => {
       });
     }
 
-    // Increment views when someone accesses the prompt details
-    prompt.views = (prompt.views || 0) + 1;
     await prompt.save();
 
     res.json({
