@@ -26,6 +26,8 @@ import {
     rateComment,
     getCommentRatings,
     getUserPrompts,
+    getPublicPrompts,
+    getUserPrompt,
 
 } from "../controllers/promptController.js";
 
@@ -58,5 +60,7 @@ router.get("/:id/comments", protect, getPromptComments);
 router.post("/:id/comments/:commentId/rate", protect, rateComment);
 router.get("/:id/comments/:commentId/ratings", protect, getCommentRatings);
 router.get("/popular", getPopularPrompts);
+router.get('/public', getPublicPrompts);
+router.get('/:id', protect, getUserPrompt);
 
 export default router;

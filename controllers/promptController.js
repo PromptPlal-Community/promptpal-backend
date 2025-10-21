@@ -319,15 +319,163 @@ export const addImagesToPrompt = async (req, res) => {
  */
 export const getUserPrompts = async (req, res) => {
   try {
-    const prompts = await Prompt.find({ author: req.user._id });
+    const { 
+      page = 1, 
+      limit = 12, 
+      search, 
+      category, 
+      isPublic, 
+      isDraft,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    
+    const filter = { author: req.user._id };
+    
+    
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { promptText: { $regex: search, $options: 'i' } },
+        { tags: { $in: [new RegExp(search, 'i')] } }
+      ];
+    }
+  
+    
+    if (isPublic !== undefined) {
+      filter.isPublic = isPublic === 'true';
+    }
+    
+    if (isDraft !== undefined) {
+      filter.isDraft = isDraft === 'true';
+    }
+
+    // Sort options
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    const prompts = await Prompt.find(filter)
+      .populate('author', 'username email avatar')
+      .sort(sortOptions)
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const totalPrompts = await Prompt.countDocuments(filter);
+
     res.json({
       success: true,
-      prompts
+      prompts,
+      pagination: {
+        current: parseInt(page),
+        total: Math.ceil(totalPrompts / limit),
+        count: prompts.length,
+        totalRecords: totalPrompts
+      }
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Error fetching user prompts:', error);
+    res.status(500).json({ error: 'Failed to fetch your prompts' });
   }
 };
+
+
+export const getUserPrompt = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Find the prompt and ensure it belongs to the current user ONLY
+    const prompt = await Prompt.findOne({ 
+      _id: id, 
+      author: req.user._id // Only return if user is the author
+    })
+    .populate('author', 'username email avatar')
+    .populate('upvotedBy', 'username avatar')
+    .populate('downvotedBy', 'username avatar');
+
+    if (!prompt) {
+      return res.status(404).json({ 
+        error: 'Prompt not found or you do not have permission to access it' 
+      });
+    }
+
+    res.json({
+      success: true,
+      data: prompt
+    });
+  } catch (error) {
+    console.error('Error fetching user prompt:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid prompt ID' });
+    }
+    
+    res.status(500).json({ error: 'Failed to fetch prompt' });
+  }
+};
+
+export const getPublicPrompts = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 12, 
+      search, 
+      category, 
+      aiTool, 
+      tags,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    
+    const filter = { isPublic: true };
+    
+    // Search across multiple fields
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { promptText: { $regex: search, $options: 'i' } },
+        { tags: { $in: [new RegExp(search, 'i')] } }
+      ];
+    }
+    
+    if (category && category !== 'All') {
+      filter.category = category;
+    }
+    
+    if (aiTool) filter.aiTool = aiTool;
+    if (tags) filter.tags = { $in: tags.split(',').map(tag => tag.trim()) };
+
+    // Sort options
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    const prompts = await Prompt.find(filter)
+      .populate('author', 'username email avatar')
+      .sort(sortOptions)
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const totalPrompts = await Prompt.countDocuments(filter);
+
+    res.json({
+      success: true,
+      prompts,
+      pagination: {
+        current: parseInt(page),
+        total: Math.ceil(totalPrompts / limit),
+        count: prompts.length,
+        totalRecords: totalPrompts
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching public prompts:', error);
+    res.status(500).json({ error: 'Failed to fetch public prompts' });
+  }
+};
+
 
 // user get prompt save in drafts by ID
 /**
@@ -584,16 +732,39 @@ export const getAllPrompts = async (req, res) => {
  */
 export const getPromptById = async (req, res) => {
   try {
-    const prompt = await Prompt.findById(req.params.id).populate('author', 'name');
+    const prompt = await Prompt.findById(req.params.id)
+      .populate('author', 'username email avatar bio')
+      .populate('upvotedBy', 'username avatar')
+      .populate('downvotedBy', 'username avatar');
+
     if (!prompt) {
       return res.status(404).json({ error: 'Prompt not found' });
     }
+
+    // Only allow access to public prompts OR user's own prompts
+    if (!prompt.isPublic && (!req.user || prompt.author._id.toString() !== req.user._id.toString())) {
+      return res.status(403).json({ 
+        error: 'Access denied. This prompt is private.' 
+      });
+    }
+
+    // Increment views when someone accesses the prompt details
+    prompt.views = (prompt.views || 0) + 1;
+    await prompt.save();
+
     res.json({
       success: true,
-      data: prompt
+      data: prompt,
+      isOwner: req.user && prompt.author._id.toString() === req.user._id.toString()
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Error fetching prompt by ID:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid prompt ID' });
+    }
+    
+    res.status(500).json({ error: 'Failed to fetch prompt' });
   }
 };
 
