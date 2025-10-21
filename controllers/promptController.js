@@ -1403,20 +1403,52 @@ export const searchPrompts = async (req, res) => {
  */
 export const incrementPromptViews = async (req, res) => {
   try {
-    const prompt = await Prompt.findById(req.params.id);
+    const { id } = req.params;
+    const userId = req.user?._id;
+
+    const prompt = await Prompt.findById(id);
     if (!prompt) {
       return res.status(404).json({ error: 'Prompt not found' });
     }
 
-    prompt.views += 1;
-    await prompt.save();
+    // Initialize viewedBy array if it doesn't exist
+    if (!prompt.viewedBy) {
+      prompt.viewedBy = [];
+    }
+
+    // Check if user is the author (prevent self-views)
+    const isAuthor = prompt.author.toString() === userId?.toString();
+    if (isAuthor) {
+      return res.json({
+        success: true,
+        data: prompt,
+        message: 'Self-view not counted'
+      });
+    }
+
+    // Check if user has already viewed this prompt
+    const hasViewed = userId && prompt.viewedBy.includes(userId);
+    
+    if (!hasViewed) {
+      prompt.views += 1;
+      
+      // Add user to viewedBy array if authenticated
+      if (userId) {
+        prompt.viewedBy.push(userId);
+      }
+      
+      await prompt.save();
+    }
 
     res.json({
       success: true,
-      data: prompt
+      data: prompt,
+      viewCounted: !hasViewed && !isAuthor,
+      message: hasViewed ? 'View already counted' : 'View counted successfully'
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Error incrementing prompt views:', error);
+    res.status(500).json({ error: 'Failed to increment prompt views' });
   }
 };
 
