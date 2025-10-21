@@ -989,26 +989,172 @@ export const setPrimaryImage = async (req, res) => {
  */
 export const ratePrompt = async (req, res) => {
   try {
-    const prompt = await Prompt.findById(req.params.id);
+    const { id } = req.params;
+    const { rating, userId } = req.body;
+
+    // Validate required fields
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ 
+        error: 'Invalid rating. Please provide a rating between 1 and 5.' 
+      });
+    }
+
+    if (!userId) {
+      return res.status(400).json({ 
+        error: 'User ID is required.' 
+      });
+    }
+
+    // Find the prompt
+    const prompt = await Prompt.findById(id);
     if (!prompt) {
       return res.status(404).json({ error: 'Prompt not found' });
     }
 
-    const { rating } = req.body;
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ error: 'Invalid rating. Please provide a rating between 1 and 5.' });
+    // Initialize ratings array if it doesn't exist
+    if (!prompt.rating.ratings) {
+      prompt.rating.ratings = [];
     }
 
-    prompt.ratings.push(rating);
+    // Check if user has already rated this prompt
+    const existingRatingIndex = prompt.rating.ratings.findIndex(
+      r => r.user.toString() === userId
+    );
+
+    let message = '';
+    let previousRating = null;
+
+    if (existingRatingIndex !== -1) {
+      // User has already rated - update existing rating
+      previousRating = prompt.rating.ratings[existingRatingIndex].value;
+      prompt.rating.ratings[existingRatingIndex].value = rating;
+      prompt.rating.ratings[existingRatingIndex].createdAt = new Date();
+      message = 'Rating updated successfully';
+    } else {
+      // User hasn't rated before - add new rating
+      prompt.rating.ratings.push({
+        user: userId,
+        value: rating,
+        createdAt: new Date()
+      });
+      message = 'Prompt rated successfully';
+    }
+
+    // Calculate new average rating
+    const totalRatings = prompt.rating.ratings.length;
+    const sumRatings = prompt.rating.ratings.reduce((sum, r) => sum + r.value, 0);
+    const newAverage = totalRatings > 0 ? sumRatings / totalRatings : 0;
+
+    // Update rating summary
+    prompt.rating.average = Math.round(newAverage * 10) / 10; // Round to 1 decimal
+    prompt.rating.count = totalRatings;
+
     await prompt.save();
+
+    // Prepare response data
+    const responseData = {
+      averageRating: prompt.rating.average,
+      totalRatings: prompt.rating.count,
+      userRating: rating,
+      hasRated: true
+    };
+
+    // Add previous rating info if it was an update
+    if (previousRating !== null) {
+      responseData.previousRating = previousRating;
+    }
 
     res.json({
       success: true,
-      message: 'Prompt rated successfully',
-      data: prompt
+      message,
+      data: responseData
     });
+
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Error rating prompt:', error);
+    
+    // Handle specific errors
+    if (error.name === 'CastError') {
+      return res.status(400).json({ 
+        error: 'Invalid prompt ID or user ID' 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to rate prompt',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+
+
+export const getUserRating = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    const prompt = await Prompt.findById(id);
+    if (!prompt) {
+      return res.status(404).json({ error: 'Prompt not found' });
+    }
+
+    const userRating = prompt.rating.ratings.find(
+      r => r.user.toString() === userId
+    );
+
+    res.json({
+      success: true,
+      data: {
+        hasRated: !!userRating,
+        userRating: userRating ? userRating.value : null,
+        averageRating: prompt.rating.average,
+        totalRatings: prompt.rating.count
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting user rating:', error);
+    res.status(500).json({ error: 'Failed to get user rating' });
+  }
+};
+
+
+
+export const getRatingStats = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const prompt = await Prompt.findById(id);
+    if (!prompt) {
+      return res.status(404).json({ error: 'Prompt not found' });
+    }
+
+    // Calculate rating distribution
+    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    prompt.rating.ratings.forEach(rating => {
+      distribution[rating.value]++;
+    });
+
+    res.json({
+      success: true,
+      data: {
+        average: prompt.rating.average,
+        count: prompt.rating.count,
+        distribution,
+        recentRatings: prompt.rating.ratings
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .slice(0, 10) // Last 10 ratings
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting rating stats:', error);
+    res.status(500).json({ error: 'Failed to get rating statistics' });
   }
 };
 
@@ -1167,22 +1313,59 @@ export const getPromptViews = async (req, res) => {
  */
 export const upvotePrompt = async (req, res) => {
   try {
-    const prompt = await Prompt.findById(req.params.id);
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    const prompt = await Prompt.findById(id);
     if (!prompt) {
       return res.status(404).json({ error: 'Prompt not found' });
     }
 
+    // Check if user already upvoted
+    const hasUpvoted = prompt.upvotedBy.includes(userId);
+    if (hasUpvoted) {
+      return res.status(400).json({ 
+        error: 'You have already upvoted this prompt' 
+      });
+    }
+
+    // Check if user previously downvoted
+    const hasDownvoted = prompt.downvotedBy.includes(userId);
+    
+    if (hasDownvoted) {
+      prompt.downvotedBy = prompt.downvotedBy.filter(
+        user => user.toString() !== userId
+      );
+      prompt.downvotes = Math.max(0, prompt.downvotes - 1);
+    }
+
+    // Add upvote
+    prompt.upvotedBy.push(userId);
     prompt.upvotes += 1;
+
     await prompt.save();
 
     res.json({
       success: true,
-      data: prompt
+      message: hasDownvoted ? 'Vote changed to upvote' : 'Prompt upvoted successfully',
+      data: {
+        upvotes: prompt.upvotes,
+        userVote: 'upvote'
+      }
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Error upvoting prompt:', error);
+    res.status(500).json({ 
+      error: 'Failed to upvote prompt',
+      details: error.message 
+    });
   }
 };
+
 
 // Downvote a prompt
 /**
@@ -1207,20 +1390,57 @@ export const upvotePrompt = async (req, res) => {
  */
 export const downvotePrompt = async (req, res) => {
   try {
-    const prompt = await Prompt.findById(req.params.id);
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    const prompt = await Prompt.findById(id);
     if (!prompt) {
       return res.status(404).json({ error: 'Prompt not found' });
     }
 
-    prompt.downvotes += 1;
+    // Check if user already downvoted
+    const hasDownvoted = prompt.downvotedBy.includes(userId);
+    if (hasDownvoted) {
+      return res.status(400).json({ 
+        error: 'You have already downvoted this prompt' 
+      });
+    }
+
+    // Check if user previously upvoted
+    const hasUpvoted = prompt.upvotedBy.includes(userId);
+    
+    if (hasUpvoted) {
+      // Remove from upvotes and add to downvotes (switch vote)
+      prompt.upvotedBy = prompt.upvotedBy.filter(
+        user => user.toString() !== userId
+      );
+      prompt.upvotes = Math.max(0, prompt.upvotes - 1);
+    }
+
+    // Add downvote
+    prompt.downvotedBy.push(userId);
+    prompt.upvotes -= 1;
+
     await prompt.save();
 
     res.json({
       success: true,
-      data: prompt
+      message: hasUpvoted ? 'Vote changed to downvote' : 'Prompt downvoted successfully',
+      data: {
+        upvotes: prompt.upvotes,
+        userVote: 'downvote'
+      }
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Error downvoting prompt:', error);
+    res.status(500).json({ 
+      error: 'Failed to downvote prompt',
+      details: error.message 
+    });
   }
 };
 

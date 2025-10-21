@@ -109,6 +109,10 @@ const PromptSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  downvotedBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   downloads: {
     type: Number,
     default: 0
@@ -118,17 +122,34 @@ const PromptSchema = new mongoose.Schema({
     default: 0
   },
   rating: {
-    average: {
+  average: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 5
+  },
+  count: {
+    type: Number,
+    default: 0
+  },
+  ratings: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    value: {
       type: Number,
-      default: 0,
-      min: 0,
+      required: true,
+      min: 1,
       max: 5
     },
-    count: {
-      type: Number,
-      default: 0
+    createdAt: {
+      type: Date,
+      default: Date.now
     }
-  },
+  }]
+},
   comments: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -139,21 +160,35 @@ const PromptSchema = new mongoose.Schema({
       required: true,
       maxlength: 500
     },
-    ratings: [{
-      user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-      },
-      value: {
-        type: Number,
-        min: 1,
-        max: 5
-      },
-      createdAt: {
-        type: Date,
-        default: Date.now
-      }
-    }],
+rating: {
+  average: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 5
+  },
+  count: {
+    type: Number,
+    default: 0
+  },
+  ratings: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    value: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }]
+},
     createdAt: {
       type: Date,
       default: Date.now
