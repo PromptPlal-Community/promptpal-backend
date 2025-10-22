@@ -208,6 +208,35 @@ const UserSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
+  },
+    rewardPoints: {
+    type: Number,
+    default: 0
+  },
+  totalRewardsGiven: {
+    type: Number,
+    default: 0
+  },
+  totalRewardsReceived: {
+    type: Number,
+    default: 0
+  },
+  rewardHistory: [{
+    trend: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Trend'
+    },
+    amount: Number,
+    type: String, // 'given' or 'received'
+    date: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  rewardTier: {
+    type: String,
+    enum: ['bronze', 'silver', 'gold', 'platinum'],
+    default: 'bronze'
   }
 });
 

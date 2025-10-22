@@ -10,10 +10,14 @@ import { notFound, errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/authRoutes.js';
 import promptRoutes from './routes/promptRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
+import trendRoutes from './routes/trendRoutes.js';
+import communityRoutes from './routes/communityRoutes.js';
+import rewardRoutes from './routes/rewardRoutes.js'
 import connectDB from './config/db.js';
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "./config/swagger.js";
 import passport from './config/passport.js';
+
 
 dotenv.config();
 
@@ -63,6 +67,9 @@ app.get('/api/', (req, res) => {
 app.use('/api/auth', limiter, authRoutes);
 app.use('/api/prompts', promptRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/trends', trendRoutes);
+app.use('/api/communities', communityRoutes);
+app.use('/api/rewards', rewardRoutes);
 
 // Google Auth
 app.use(passport.initialize());
