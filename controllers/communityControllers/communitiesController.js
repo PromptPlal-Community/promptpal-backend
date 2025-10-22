@@ -1,5 +1,5 @@
 
-import Community from "../../models/commmunity/communityModel"
+import Community from "../../models/commmunity/communityModel.js"
 
 
 // Create community

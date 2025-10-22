@@ -1,6 +1,6 @@
-import Trend from '../../models/commmunity/trendsModel'
-import User from '../../models/userModel'
-import RewardType from '../../models/commmunity/RewardType'
+import Trend from '../../models/commmunity/trendsModel.js'
+import User from '../../models/userModel.js'
+import RewardType from '../../models/commmunity/RewardType.js'
 
 
 // Add medal reward to trend

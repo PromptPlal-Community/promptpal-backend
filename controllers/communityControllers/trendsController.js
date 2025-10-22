@@ -1,8 +1,8 @@
 
 
-import Trend from "../../models/commmunity/trendsModel" ;
-import Community from "../../models/commmunity/communityModel";
-import Comment from "../../models/commmunity/commentModel";
+import Trend from "../../models/commmunity/trendsModel.js" ;
+import Community from "../../models/commmunity/communityModel.js";
+import Comment from "../../models/commmunity/commentModel.js";
 
 
 // Create trend
