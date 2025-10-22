@@ -4,7 +4,7 @@ import { protect } from "../middleware/authMiddleware.js";
 import {
     handleCommentOnTrend, handleCreateTrend,
     handleGetATrendWithComment, handleGetTrendsWithFiltering,
-    handleUpvoteTrend, handleCommentOnTrend, handleDownvoteTrend
+    handleUpvoteTrend, handleDownvoteTrend
 } from "../controllers/communityControllers/trendsController.js"
 
 const router = express.Router();
