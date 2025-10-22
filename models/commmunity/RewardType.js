@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const rewardTypeSchema = new mongoose.Schema({
+const RewardTypeSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
@@ -48,4 +48,4 @@ const rewardTypeSchema = new mongoose.Schema({
   timestamps: true
 });
 
-export default mongoose.model('RewardType', rewardTypeSchema);
+export default mongoose.model('RewardType', RewardTypeSchema);

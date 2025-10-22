@@ -1,7 +1,7 @@
 
 import mongoose from 'mongoose';
 
-const rewardSchema = new mongoose.Schema({
+const RewardSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -35,7 +35,7 @@ const rewardSchema = new mongoose.Schema({
   timestamps: true
 });
 
-const trendSchema = new mongoose.Schema({
+const TrendSchema = new mongoose.Schema({
   title: {
     type: String,
     required: true,
@@ -76,7 +76,7 @@ const trendSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  rewards: [rewardSchema],
+  rewards: [RewardSchema],
   totalRewardValue: {
     type: Number,
     default: 0
@@ -129,7 +129,7 @@ const trendSchema = new mongoose.Schema({
 
 
     
-trendSchema.pre('save', function(next) {
+TrendSchema.pre('save', function(next) {
   if (this.isModified('rewards')) {
     this.medalSummary = { gold: 0, silver: 0, bronze: 0, platinum: 0, diamond: 0, other: 0 };
     this.totalRewardValue = 0;
@@ -183,4 +183,4 @@ trendSchema.pre('save', function(next) {
   next();
 });
 
-export default mongoose.model('Trend', trendSchema);
+export default mongoose.model('Trend', TrendSchema);
