@@ -789,190 +789,210 @@ export const getPromptById = async (req, res) => {
  *         description: Not authorized to update this prompt
  */
 export const updatePrompt = async (req, res) => {
-    try {
-      const prompt = await Prompt.findById(req.params.id)
-        .populate('author', 'username profile avatar level');
+  try {
+    const prompt = await Prompt.findById(req.params.id)
+      .populate('author', 'username profile avatar level');
+    
+    if (!prompt) {
+      return res.status(404).json({ error: 'Prompt not found' });
+    }
+
+    if (prompt.author._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Not authorized to update this prompt' });
+    }
+
+    const user = await User.findById(req.user._id);
+    const {
+      title,
+      description,
+      promptText,
+      resultText,
+      aiTool,
+      tags,
+      isPublic,
+      isDraft,
+      requiresLevel,
+      difficulty,
+      category,
+      imagesToDelete,
+      captions
+    } = req.body;
+
+
+
+    const isPublicBool = isPublic === 'true' || isPublic === true;
+    const isDraftBool = isDraft === 'true' || isDraft === true;
+
+    prompt.title = title || prompt.title;
+    prompt.description = description || prompt.description;
+    prompt.promptText = promptText || prompt.promptText;
+    prompt.resultText = resultText !== undefined ? resultText : prompt.resultText;
+    prompt.isPublic = isPublic !== undefined ? isPublicBool : prompt.isPublic;
+    prompt.isDraft = isDraft !== undefined ? isDraftBool : prompt.isDraft;
+    prompt.requiresLevel = requiresLevel || prompt.requiresLevel;
+    prompt.difficulty = difficulty || prompt.difficulty;
+    prompt.category = category || prompt.category;
+
+    // Update tags if provided
+    if (tags !== undefined) {
+      if (typeof tags === 'string') {
+        // Handle both comma-separated and JSON strings
+        try {
+          const parsedTags = JSON.parse(tags);
+          prompt.tags = Array.isArray(parsedTags) ? parsedTags : [tags];
+        } catch {
+          prompt.tags = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+        }
+      } else if (Array.isArray(tags)) {
+        prompt.tags = tags;
+      }
+    }
+
+    // Handle AI tools
+    if (aiTool !== undefined) {
+      if (typeof aiTool === 'string') {
+        try {
+          const parsedAiTool = JSON.parse(aiTool);
+          prompt.aiTool = Array.isArray(parsedAiTool) ? parsedAiTool : [aiTool];
+        } catch {
+          prompt.aiTool = aiTool.split(',').map(tool => tool.trim()).filter(tool => tool);
+        }
+      } else if (Array.isArray(aiTool)) {
+        prompt.aiTool = aiTool;
+      }
+    }
+
+    // Handle image deletions first
+    if (imagesToDelete && imagesToDelete.length > 0) {
+      const deleteIndexes = Array.isArray(imagesToDelete) ? imagesToDelete : JSON.parse(imagesToDelete);
       
-      if (!prompt) {
-        return res.status(404).json({ error: 'Prompt not found' });
+      for (const index of deleteIndexes.sort((a, b) => b - a)) {
+        await prompt.deleteCloudinaryImage(parseInt(index));
       }
+    }
 
-      // Check authorization - only author can update
-      if (prompt.author._id.toString() !== req.user._id.toString()) {
-        return res.status(403).json({ error: 'Not authorized to update this prompt' });
-      }
-
-      const user = await User.findById(req.user._id);
-      const {
-        title,
-        description,
-        promptText,
-        resultText,
-        aiTool,
-        tags,
-        isPublic,
-        isDraft,
-        requiresLevel,
-        difficulty,
-        category,
-        imagesToDelete,
-        captions
-      } = req.body;
-
-      // Update basic prompt details
-      prompt.title = title || prompt.title;
-      prompt.description = description || prompt.description;
-      prompt.promptText = promptText || prompt.promptText;
-      prompt.resultText = resultText !== undefined ? resultText : prompt.resultText;
-      prompt.isPublic = isPublic !== undefined ? isPublic === 'true' : prompt.isPublic;
-      prompt.isDraft = isDraft !== undefined ? isDraft === 'true' : prompt.isDraft;
-      prompt.requiresLevel = requiresLevel || prompt.requiresLevel;
-      prompt.difficulty = difficulty || prompt.difficulty;
-      prompt.category = category || prompt.category;
-      // Update tags if provided
-      if (tags !== undefined) {
-        prompt.tags = Array.isArray(tags) ? tags : tags.split(',').map(tag => tag.trim());
-      }
-
-      if (aiTool !== undefined) {
-        prompt.aiTool = Array.isArray(aiTool) ? aiTool : aiTool.split(',').map(tag => tag.trim());
-      }
-
-      // Handle image deletions first
-      if (imagesToDelete) {
-        const deleteIndexes = Array.isArray(imagesToDelete) ? imagesToDelete : JSON.parse(imagesToDelete);
-        
-        for (const index of deleteIndexes.sort((a, b) => b - a)) {
-          await prompt.deleteCloudinaryImage(parseInt(index));
-        }
-      }
-
-      // Handle new image uploads
-      if (req.files && req.files.length > 0) {
-        let totalNewImageSize = 0;
-        
-        // Check storage limits for new images
-        for (const file of req.files) {
-          const canUpload = await user.canUploadImage(file.size);
-          if (!canUpload.allowed) {
-            // Clean up any already processed files
-            req.files.forEach(f => {
-              if (f.buffer) {
-                // Memory storage - no file to delete, but we should not proceed
-              }
-            });
-            return res.status(400).json({ error: canUpload.reason });
-          }
-          totalNewImageSize += file.size;
-        }
-
-        // Upload new images to Cloudinary
-        const uploadResults = await CloudinaryService.uploadMultiple(req.files, {
-          folder: `users/${req.user._id}/prompts`,
-          transformation: [
-            {
-              width: 1200,
-              height: 800,
-              crop: 'limit',
-              quality: 'auto:good',
-              format: 'auto'
+    // Handle new image uploads
+    if (req.files && req.files.length > 0) {
+      let totalNewImageSize = 0;
+      
+      for (const file of req.files) {
+        const canUpload = await user.canUploadImage(file.size);
+        if (!canUpload.allowed) {
+          req.files.forEach(f => {
+            if (f.buffer) {
             }
-          ]
-        });
-
-        // Process uploaded images with captions
-        const newImages = uploadResults.map((result, index) => {
-          let caption = '';
-          
-          // Handle captions input
-          if (captions) {
-            if (Array.isArray(captions)) {
-              caption = captions[index] || '';
-            } else if (typeof captions === 'object') {
-              caption = captions[index] || '';
-            } else {
-              try {
-                const parsedCaptions = JSON.parse(captions);
-                caption = parsedCaptions[index] || '';
-              } catch {
-                caption = '';
-              }
-            }
-          }
-
-          return {
-            public_id: result.public_id,
-            url: result.secure_url,
-            thumbnail_url: CloudinaryService.generateThumbnailUrl(result.public_id),
-            optimized_url: CloudinaryService.generateOptimizedUrl(result.public_id),
-            responsive_urls: CloudinaryService.generateResponsiveUrls(result.public_id),
-            caption,
-            format: result.format,
-            width: result.width,
-            height: result.height,
-            bytes: result.bytes,
-            transformation: result.transformation,
-            isPrimary: prompt.images.length === 0 && index === 0 // Set as primary if no images exist
-          };
-        });
-
-        // Add new images to prompt
-        prompt.images.push(...newImages);
-
-        // Update user's storage usage
-        await user.trackImageUpload(totalNewImageSize);
-      }
-
-      // Handle primary image setting
-      if (req.body.primaryImageIndex !== undefined) {
-        await prompt.setPrimaryImage(parseInt(req.body.primaryImageIndex));
-      }
-
-      // Update metadata
-      prompt.metadata = {
-        ...prompt.metadata,
-        wordCount: prompt.promptText.split(/\s+/).length,
-        characterCount: prompt.promptText.length,
-        hasImages: prompt.images.length > 0,
-        hasCode: prompt.promptText.includes('```') || (prompt.resultText && prompt.resultText.includes('```')),
-        imageCount: prompt.images.length
-      };
-
-      prompt.updatedAt = new Date();
-      await prompt.save();
-
-      // Populate the updated prompt for response
-      const updatedPrompt = await Prompt.findById(prompt._id)
-        .populate('author', 'username profile avatar level profession')
-        .populate('community', 'name description');
-
-      res.json({
-        success: true,
-        message: 'Prompt updated successfully',
-        data: {
-          ...updatedPrompt.toObject(),
-          primaryImage: updatedPrompt.primaryImage,
-          totalImagesSize: updatedPrompt.totalImagesSize
+          });
+          return res.status(400).json({ error: canUpload.reason });
         }
+        totalNewImageSize += file.size;
+      }
+
+      const uploadResults = await CloudinaryService.uploadMultiple(req.files, {
+        folder: `users/${req.user._id}/prompts`,
+        transformation: [
+          {
+            width: 1200,
+            height: 800,
+            crop: 'limit',
+            quality: 'auto:good',
+            format: 'auto'
+          }
+        ]
       });
 
-    } catch (error) {
-      console.error('Error updating prompt:', error);
-      
-        // Clean up any uploaded Cloudinary images if error occurred after upload
-        if (req.files && req.files.length > 0) {
-          try {
-            await CloudinaryService.deleteMultiple(req.files.map(file => file.public_id));
-            console.error('Error occurred after image uploads. Images may need manual cleanup.');
-          } catch (cleanupError) {
-            console.error('Cleanup error:', cleanupError);
+      // Process uploaded images with captions
+      const newImages = uploadResults.map((result, index) => {
+        let caption = '';
+        
+        // Handle captions input
+        if (captions) {
+          if (Array.isArray(captions)) {
+            caption = captions[index] || '';
+          } else if (typeof captions === 'object') {
+            caption = captions[index] || '';
+          } else {
+            try {
+              const parsedCaptions = JSON.parse(captions);
+              caption = parsedCaptions[index] || '';
+            } catch {
+              caption = '';
+            }
           }
         }
-      }
 
-      res.status(400).json({ 
-        error: error.message || 'Failed to update prompt' 
+        return {
+          public_id: result.public_id,
+          url: result.secure_url,
+          thumbnail_url: CloudinaryService.generateThumbnailUrl(result.public_id),
+          optimized_url: CloudinaryService.generateOptimizedUrl(result.public_id),
+          responsive_urls: CloudinaryService.generateResponsiveUrls(result.public_id),
+          caption,
+          format: result.format,
+          width: result.width,
+          height: result.height,
+          bytes: result.bytes,
+          transformation: result.transformation,
+          isPrimary: prompt.images.length === 0 && index === 0
+        };
       });
+
+      // Add new images to prompt
+      prompt.images.push(...newImages);
+
+      // Update user's storage usage
+      await user.trackImageUpload(totalNewImageSize);
+    }
+
+    // Handle primary image setting
+    if (req.body.primaryImageIndex !== undefined) {
+      await prompt.setPrimaryImage(parseInt(req.body.primaryImageIndex));
+    }
+
+    // Update metadata
+    prompt.metadata = {
+      ...prompt.metadata,
+      wordCount: prompt.promptText.split(/\s+/).length,
+      characterCount: prompt.promptText.length,
+      hasImages: prompt.images.length > 0,
+      hasCode: prompt.promptText.includes('```') || (prompt.resultText && prompt.resultText.includes('```')),
+      imageCount: prompt.images.length
+    };
+
+    prompt.updatedAt = new Date();
+    
+    // Save the prompt
+    await prompt.save();
+
+    // Populate the updated prompt for response
+    const updatedPrompt = await Prompt.findById(prompt._id)
+      .populate('author', 'username profile avatar level profession')
+      .populate('community', 'name description');
+
+    res.json({
+      success: true,
+      message: 'Prompt updated successfully',
+      data: updatedPrompt
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating prompt:', error);
+    
+    // Clean up any uploaded Cloudinary images if error occurred after upload
+    if (req.files && req.files.length > 0) {
+      try {
+        const publicIds = req.files.map(file => file.public_id).filter(id => id);
+        if (publicIds.length > 0) {
+          await CloudinaryService.deleteMultiple(publicIds);
+        }
+      } catch (cleanupError) {
+        console.error('Cleanup error:', cleanupError);
+      }
+    }
+
+    res.status(400).json({ 
+      error: error.message || 'Failed to update prompt' 
+    });
+  }
 };
 
 // Delete prompt
