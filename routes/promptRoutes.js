@@ -34,6 +34,7 @@ import {
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
+router.get('/public', getPublicPrompts);
 
 router.post("/", upload.array('images', 2), protect, createPrompt);
 router.get("/filtered", protect, getAllPrompts);
@@ -60,7 +61,6 @@ router.get("/:id/comments", protect, getPromptComments);
 router.post("/:id/comments/:commentId/rate", protect, rateComment);
 router.get("/:id/comments/:commentId/ratings", protect, getCommentRatings);
 router.get("/popular", getPopularPrompts);
-router.get('/public', getPublicPrompts);
 router.get('/:id', protect, getUserPrompt);
 
 export default router;
