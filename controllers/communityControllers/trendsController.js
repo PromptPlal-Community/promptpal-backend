@@ -110,16 +110,23 @@ export const handleGetATrendWithComment = async (req, res) => {
       return res.status(404).json({ error: 'Trend not found' });
     }
 
-    // Increment views
-    trend.views += 1;
-    await trend.save();
+    // Increment views uniquely per user, excluding author
+    if (req.user) {
+      const userId = req.user._id;
+      if (userId.toString() !== trend.author.toString() && 
+          !trend.viewedBy.some(id => id.toString() === userId.toString())) {
+        trend.viewedBy.push(userId);
+        trend.views += 1;
+        await trend.save();
+      }
+    }
 
     // Get comments 
     const comments = await Comment.find({ trend: trend._id, parentComment: null })
       .populate('author', 'username avatar')
       .sort({ voteScore: -1, createdAt: -1 });
 
-    res.status(201).json({ trend, comments });
+    res.status(200).json({ trend, comments });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -242,5 +249,164 @@ export const handleCommentOnTrend = async (req, res) => {
           comment});
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+};
+
+
+export const handleDeleteComment = async (req, res) => {
+  try {
+    const trend = await Trend.findOne({ 'comments._id': req.params.id });
+    if (!trend) {
+      return res.status(404).json({ success: false, message: 'Trend not found' });
+    }
+
+    const comment = trend.comments.id(req.params.id);
+    if (!comment) {
+      return res.status(404).json({ success: false, message: 'Comment not found' });
+    }
+
+    if (trend.author.toString() !== req.user._id.toString() && comment.author.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Not authorized to delete this comment'
+      });
+    }
+
+    // Delete the comment
+    comment.remove();
+    await trend.save();
+    
+    res.json({
+      success: true,
+      message: 'Comment deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete comment error:', error);
+    console.error('Error stack:', error.stack);
+    res.status(400).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+};
+
+
+
+export const handleDeleteTrend = async (req, res) => {
+  try {
+    const trend = await Trend.findById(req.params.id);
+    if (!trend) {
+      return res.status(404).json({ success: false, message: 'Trend not found' });
+    }
+
+    if (trend.author.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Not authorized to delete this trend'
+      });
+    }
+
+    // Delete the trend
+    await Trend.findByIdAndDelete(req.params.id);
+    
+    res.json({
+      success: true,
+      message: 'Trend deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete trend error:', error);
+    console.error('Error stack:', error.stack);
+    res.status(400).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+};
+
+
+export const handleUpvoteComment = async (req, res) => {
+  try {
+    const trend = await Trend.findOne({ 'comments._id': req.params.id });
+    if (!trend) {
+      return res.status(404).json({ success: false, message: 'Trend not found' });
+    }
+
+    const comment = trend.comments.id(req.params.id);
+    if (!comment) {
+      return res.status(404).json({ success: false, message: 'Comment not found' });
+    }
+
+    if (trend.author.toString() !== req.user._id.toString() && comment.author.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Not authorized to like this comment'
+      });
+    }
+
+    const userId = req.user.id;
+
+    // Remove from downvotes if exists
+    if (comment.downvotes.includes(userId)) {
+      comment.downvotes.pull(userId);
+    }
+
+    // Toggle upvote
+    if (comment.upvotes.includes(userId)) {
+      comment.upvotes.pull(userId);
+    } else {
+      comment.upvotes.push(userId);
+    }
+
+    // Calculate vote score
+    comment.voteScore = comment.upvotes.length - comment.downvotes.length;
+    await comment.save();
+
+    res.status(201).json({ voteScore: comment.voteScore, userVote: 'upvoted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Downvote trend
+export const handleDownvoteComment = async (req, res) => {
+  try {
+    const trend = await Trend.findOne({ 'comments._id': req.params.id });
+    if (!trend) {
+      return res.status(404).json({ success: false, message: 'Trend not found' });
+    }
+
+    const comment = trend.comments.id(req.params.id);
+    if (!comment) {
+      return res.status(404).json({ success: false, message: 'Comment not found' });
+    }
+
+    if (trend.author.toString() !== req.user._id.toString() && comment.author.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Not authorized to like this comment'
+      });
+    }
+
+    const userId = req.user.id;
+
+    // Remove from upvotes if exists
+    if (comment.upvotes.includes(userId)) {
+      comment.upvotes.pull(userId);
+    }
+
+    // Toggle downvote
+    if (comment.downvotes.includes(userId)) {
+      comment.downvotes.pull(userId);
+    } else {
+      comment.downvotes.push(userId);
+    }
+
+    // Calculate vote score
+    comment.voteScore = comment.upvotes.length - comment.downvotes.length;
+    await comment.save();
+
+    res.status(201).json({ voteScore: comment.voteScore, userVote: 'downvoted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
